@@ -1,0 +1,359 @@
+// Author: Martin Wetzko
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include <iostream>
+#include <Windows.h>
+#include <vector>
+#include <string>
+#include <mutex>
+#include <SetupAPI.h>
+#include <map>
+#include "OverlappedComm.h"
+#include "GsmDecoder.h"
+#include "Shared.h"
+
+#pragma comment (lib, "SetupAPI.lib")
+
+#define BUFFER_LENGTH 48
+
+VOID CALLBACK TimerCallback(HWND, UINT, UINT_PTR, DWORD);
+
+std::map<std::wstring, HANDLE> Ports;
+std::mutex PortsLock;
+
+HANDLE ExitApp;
+
+void CheckHardwareID(DWORD, DWORD);
+void EnsureCommPort(LPCWSTR);
+void RemoveCommPort(LPCWSTR);
+void GetRemainingThreads(std::vector<HANDLE>*);
+DWORD WINAPI ProcessCommPort(LPVOID);
+void ProcessCommLoop(OverlappedComm&);
+BOOL ProcessMessages(OverlappedComm&);
+BOOL ParsePDU(std::wstring&, std::wstring*, std::wstring*, std::wstring*);
+void SendEmail(std::wstring&, std::wstring&, std::wstring&);
+
+int main()
+{
+	ExitApp = CreateEventW(NULL, TRUE, FALSE, NULL);
+
+	if (!ExitApp)
+	{
+		return -1;
+	}
+
+	UINT_PTR timer = SetTimer(NULL, NULL, 10000, TimerCallback);
+
+	MSG msg = { 0 };
+	while (GetMessageW(&msg, NULL, 0, 0) > 0)
+	{
+		TranslateMessage(&msg);
+		DispatchMessageW(&msg);
+	}
+
+	KillTimer(NULL, timer);
+
+	SetEvent(ExitApp);
+
+	std::vector<HANDLE> threads;
+	GetRemainingThreads(&threads);
+
+	for (auto it : threads)
+	{
+		WaitForSingleObject(it, INFINITE);
+	}
+
+	return 0;
+}
+
+VOID CALLBACK TimerCallback(HWND, UINT, UINT_PTR, DWORD)
+{
+	CheckHardwareID(0x1A86, 0x7523);
+}
+
+void CheckHardwareID(DWORD vid, DWORD pid)
+{
+	std::wstring format = FormatStr(L"USB\\VID_%X&PID_%X", vid, pid);
+
+	LPWSTR str = new WCHAR[MAX_PATH];
+
+	HDEVINFO devInfo = SetupDiGetClassDevsW(&GUID_SERENUM_BUS_ENUMERATOR, NULL, NULL, DIGCF_PRESENT);
+
+	SP_DEVINFO_DATA devInfoData;
+	devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+	for (DWORD dwDeviceIndex = 0; SetupDiEnumDeviceInfo(devInfo, dwDeviceIndex, &devInfoData); dwDeviceIndex++)
+	{
+		DWORD size = MAX_PATH;
+		if (SetupDiGetDeviceInstanceIdW(devInfo, &devInfoData, str, size, &size))
+		{
+			if (std::wstring(str).find(format) == 0)
+			{
+				HKEY reg = SetupDiOpenDevRegKey(devInfo, &devInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);
+
+				size = MAX_PATH * sizeof(WCHAR);
+				if (RegGetValueW(reg, NULL, L"PortName", RRF_RT_REG_SZ, NULL, str, &size) == ERROR_SUCCESS)
+				{
+					EnsureCommPort(str);
+				}
+
+				RegCloseKey(reg);
+			}
+		}
+	}
+
+	if (devInfo)
+	{
+		SetupDiDestroyDeviceInfoList(devInfo);
+	}
+
+	delete[] str;
+}
+
+void EnsureCommPort(LPCWSTR port)
+{
+	const std::lock_guard<std::mutex> lock(PortsLock);
+
+	auto it = Ports.find(port);
+
+	if (it == Ports.end())
+	{
+		Ports.insert_or_assign(port, CreateThread(NULL, 0, ProcessCommPort, new std::wstring(port), 0, NULL));
+	}
+}
+
+void RemoveCommPort(LPCWSTR port)
+{
+	const std::lock_guard<std::mutex> lock(PortsLock);
+
+	auto it = Ports.find(port);
+
+	if (it != Ports.end())
+	{
+		Ports.erase(it);
+	}
+}
+
+void GetRemainingThreads(std::vector<HANDLE>* threads)
+{
+	*threads = std::vector<HANDLE>();
+
+	const std::lock_guard<std::mutex> lock(PortsLock);
+
+	for (auto it : Ports)
+	{
+		threads->push_back(it.second);
+	}
+}
+
+DWORD WINAPI ProcessCommPort(LPVOID state)
+{
+	std::wstring* port = (std::wstring*)state;
+
+	std::wcout << L"Processing device at " << *port << std::endl;
+
+	HANDLE com = CreateFileW(port->c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+
+	if (com != NULL && com != INVALID_HANDLE_VALUE)
+	{
+		COMMTIMEOUTS timeouts = { 0 };
+		timeouts.ReadIntervalTimeout = -1;
+		timeouts.ReadTotalTimeoutConstant = -2;
+		timeouts.ReadTotalTimeoutMultiplier = -1;
+		timeouts.WriteTotalTimeoutConstant = 0;
+		timeouts.WriteTotalTimeoutMultiplier = 0;
+
+		SetCommTimeouts(com, &timeouts);
+
+		OverlappedComm ofm(port->c_str(), com);
+
+		ProcessCommLoop(ofm);
+	}
+
+	RemoveCommPort(port->c_str());
+
+	delete state;
+
+	return 0;
+}
+
+void ProcessCommLoop(OverlappedComm& ofm)
+{
+	if (!ofm.ExecuteATCommand(ExitApp, L"AT"))
+	{
+		ofm.OutputConsole(L"AT start command failed!");
+		return;
+	}
+
+	std::wstring line;
+	if (!ofm.ExecuteATCommandResult(ExitApp, L"AT+CPIN?", &line))
+	{
+		ofm.OutputConsole(L"PIN command failed!");
+		return;
+	}
+
+	if (!wcsstr(line.c_str(), L"READY"))
+	{
+		ofm.OutputConsole(L"SIM card requires a PIN. Remove the PIN and try again!");
+		return;
+	}
+
+	if (!ProcessMessages(ofm))
+	{
+		return;
+	}
+
+	if (!ofm.ExecuteATCommand(ExitApp, L"AT+CNMI=2"))
+	{
+		ofm.OutputConsole(L"CNMI (Notify SMS received) command failed!");
+		return;
+	}
+
+	while (ofm.ReadLine(ExitApp, &line))
+	{
+		if (wcsstr(line.c_str(), L"+CMTI") == line.c_str())
+		{
+			if (!ProcessMessages(ofm))
+			{
+				return;
+			}
+		}
+	}
+}
+
+BOOL ProcessMessages(OverlappedComm& ofm)
+{
+	while (true)
+	{
+		std::vector<std::wstring> lines;
+		if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGR=1", &lines))
+		{
+			ofm.OutputConsole(L"CMGR (Receive SMS) command failed!");
+			return FALSE;
+		}
+
+		auto it = lines.begin();
+
+		if (it != lines.end() && wcsstr(it->c_str(), L"+CMGR") == it->c_str())
+		{
+			if (++it != lines.end())
+			{
+				std::wstring from;
+				std::wstring datetime;
+				std::wstring message;
+				if (ParsePDU(*it, &from, &datetime, &message))
+				{
+					SendEmail(from, datetime, message);
+				}
+			}
+		}
+
+		if (!ofm.ExecuteATCommand(ExitApp, L"AT+CMGD=1"))
+		{
+			ofm.OutputConsole(L"CMGD (Delete SMS) command failed!");
+			return FALSE;
+		}
+
+		if (++it == lines.end())
+		{
+			break;
+		}
+	}
+
+	return TRUE;
+}
+
+#define ENDIFNECESSARY3 if (it == buffer.end()) return FALSE
+
+BOOL ParsePDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, std::wstring* message)
+{
+	std::vector<BYTE> buffer;
+	DecodeHexToBin(pdu, &buffer);
+
+	auto it = buffer.begin();
+
+	ENDIFNECESSARY3;
+
+	auto num = *it++;
+
+	while (num-- > 0)
+	{
+		ENDIFNECESSARY3;
+		it++;
+	}
+
+	ENDIFNECESSARY3;
+
+	auto flags = *it++;
+
+	ENDIFNECESSARY3;
+
+	int senderNum = *it++;
+
+	ENDIFNECESSARY3;
+
+	int numberType = *it++;
+
+	int snum = senderNum + (senderNum % 2);
+
+	std::wstring number;
+
+	for (int i = 0; i < snum; i += 2, it++)
+	{
+		ENDIFNECESSARY3;
+
+		number.push_back(L'0' + ((*it) & 0xF));
+		number.push_back(L'0' + (((*it) >> 4) & 0xF));
+	}
+
+	if (number.size() < senderNum)
+	{
+		return FALSE;
+	}
+
+	// assume from is empty
+	from->append(number.c_str(), senderNum);
+
+	ENDIFNECESSARY3;
+
+	auto proto = *it++;
+
+	ENDIFNECESSARY3;
+
+	auto scheme = *it++;
+
+	ENDIFNECESSARY3;
+
+	std::wstring timestamp;
+
+	for (int i = 0; i < 7; i++, it++)
+	{
+		ENDIFNECESSARY3;
+
+		timestamp.push_back(L'0' + ((*it) & 0xF));
+		timestamp.push_back(L'0' + (((*it) >> 4) & 0xF));
+	}
+
+	if (!ParseGsmDateTime(timestamp, datetime))
+	{
+		return FALSE;
+	}
+
+	ENDIFNECESSARY3;
+
+	buffer.erase(buffer.begin(), it);
+
+	DecodeGsm(buffer, message);
+
+	return TRUE;
+}
+
+void SendEmail(std::wstring& from, std::wstring& datetime, std::wstring& message)
+{
+
+}
