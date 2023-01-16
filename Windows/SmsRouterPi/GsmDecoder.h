@@ -379,20 +379,59 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 
 	int len = *it++;
 
-	ENDIFNECESSARY3;
-
 	num = 0;
 
-	// HAS USER DATA HEADER
-	if (flags & 0x40)
+	if (scheme & 0x8)
 	{
-		// LENGTH OF HEADER
-		num = *it;
+		// UCS-2
+		// HAS USER DATA HEADER
+		if (flags & 0x40)
+		{
+			ENDIFNECESSARY3;
 
-		num = MulDiv(num + 1, 8, 7);
+			// LENGTH OF HEADER
+			num = *it++;
+
+			while (num-- > 0)
+			{
+				ENDIFNECESSARY3;
+
+				it++;
+			}
+		}
+
+		std::string temp;
+
+		for (int i = 0; i < len; i++)
+		{
+			ENDIFNECESSARY3;
+
+			temp.push_back(*it++);
+		}
+
+		std::wstring_convert<std::codecvt_utf16<wchar_t>> cvt;
+
+		*message = cvt.from_bytes(temp);
 	}
+	else if (scheme & 0x4)
+	{
+		// Binary Message
+		return FALSE;
+	}
+	else
+	{
+		// 7 Bit
+		// HAS USER DATA HEADER
+		if (flags & 0x40)
+		{
+			// LENGTH OF HEADER
+			num = *it;
 
-	DecodeGsmSeptetData(it, buffer.end(), len, num, message);
+			num = MulDiv(num + 1, 8, 7);
+		}
+
+		DecodeGsmSeptetData(it, buffer.end(), len, num, message);
+	}
 
 	return TRUE;
 }

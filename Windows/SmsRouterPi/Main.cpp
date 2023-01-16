@@ -233,41 +233,38 @@ void ProcessCommLoop(OverlappedComm& ofm)
 
 BOOL ProcessMessages(OverlappedComm& ofm)
 {
-	while (true)
+	std::vector<std::wstring> lines;
+	if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGL=4", &lines))
 	{
-		std::vector<std::wstring> lines;
-		if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGL=4", &lines))
+		ofm.OutputConsole(L"CMGR (Receive SMS) command failed!");
+		return FALSE;
+	}
+
+	auto it = lines.begin();
+
+	while (it != lines.end() && wcsstr(it->c_str(), L"+CMGL") == it->c_str())
+	{
+		int index;
+		if (!GetMessageIndexFromListing(*it, &index))
 		{
-			ofm.OutputConsole(L"CMGR (Receive SMS) command failed!");
 			return FALSE;
 		}
 
-		auto it = lines.begin();
-
-		while (it != lines.end() && wcsstr(it->c_str(), L"+CMGL") == it->c_str())
+		if (++it != lines.end())
 		{
-			int index;
-			if (!GetMessageIndexFromListing(*it, &index))
+			std::wstring from;
+			std::wstring datetime;
+			std::wstring message;
+			if (ParseGsmPDU(*(it++), &from, &datetime, &message))
 			{
-				return FALSE;
+				SendEmail(from, datetime, message);
 			}
+		}
 
-			if (++it != lines.end())
-			{
-				std::wstring from;
-				std::wstring datetime;
-				std::wstring message;
-				if (ParseGsmPDU(*(it++), &from, &datetime, &message))
-				{
-					SendEmail(from, datetime, message);
-				}
-			}
-
-			if (!ofm.ExecuteATCommand(ExitApp, FormatStr(L"AT+CMGD=%i", index).c_str()))
-			{
-				ofm.OutputConsole(L"CMGD (Delete SMS) command failed!");
-				return FALSE;
-			}
+		if (!ofm.ExecuteATCommand(ExitApp, FormatStr(L"AT+CMGD=%i", index).c_str()))
+		{
+			ofm.OutputConsole(L"CMGD (Delete SMS) command failed!");
+			return FALSE;
 		}
 	}
 
