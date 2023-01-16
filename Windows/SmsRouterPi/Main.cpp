@@ -36,7 +36,6 @@ void GetRemainingThreads(std::vector<HANDLE>*);
 DWORD WINAPI ProcessCommPort(LPVOID);
 void ProcessCommLoop(OverlappedComm&);
 BOOL ProcessMessages(OverlappedComm&);
-BOOL ParsePDU(std::wstring&, std::wstring*, std::wstring*, std::wstring*);
 void SendEmail(std::wstring&, std::wstring&, std::wstring&);
 
 int main()
@@ -203,6 +202,12 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
+	if (!ofm.ExecuteATCommand(ExitApp, L"AT+CMGF=0"))
+	{
+		ofm.OutputConsole(L"Set PDU mode command failed!");
+		return;
+	}
+
 	if (!ProcessMessages(ofm))
 	{
 		return;
@@ -231,7 +236,7 @@ BOOL ProcessMessages(OverlappedComm& ofm)
 	while (true)
 	{
 		std::vector<std::wstring> lines;
-		if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGR=1", &lines))
+		if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGL=4", &lines))
 		{
 			ofm.OutputConsole(L"CMGR (Receive SMS) command failed!");
 			return FALSE;
@@ -239,121 +244,37 @@ BOOL ProcessMessages(OverlappedComm& ofm)
 
 		auto it = lines.begin();
 
-		if (it != lines.end() && wcsstr(it->c_str(), L"+CMGR") == it->c_str())
+		while (it != lines.end() && wcsstr(it->c_str(), L"+CMGL") == it->c_str())
 		{
+			int index;
+			if (!GetMessageIndexFromListing(*it, &index))
+			{
+				return FALSE;
+			}
+
 			if (++it != lines.end())
 			{
 				std::wstring from;
 				std::wstring datetime;
 				std::wstring message;
-				if (ParsePDU(*it, &from, &datetime, &message))
+				if (ParseGsmPDU(*(it++), &from, &datetime, &message))
 				{
 					SendEmail(from, datetime, message);
 				}
 			}
-		}
 
-		if (!ofm.ExecuteATCommand(ExitApp, L"AT+CMGD=1"))
-		{
-			ofm.OutputConsole(L"CMGD (Delete SMS) command failed!");
-			return FALSE;
-		}
-
-		if (++it == lines.end())
-		{
-			break;
+			if (!ofm.ExecuteATCommand(ExitApp, FormatStr(L"AT+CMGD=%i", index).c_str()))
+			{
+				ofm.OutputConsole(L"CMGD (Delete SMS) command failed!");
+				return FALSE;
+			}
 		}
 	}
-
-	return TRUE;
-}
-
-#define ENDIFNECESSARY3 if (it == buffer.end()) return FALSE
-
-BOOL ParsePDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, std::wstring* message)
-{
-	std::vector<BYTE> buffer;
-	DecodeHexToBin(pdu, &buffer);
-
-	auto it = buffer.begin();
-
-	ENDIFNECESSARY3;
-
-	auto num = *it++;
-
-	while (num-- > 0)
-	{
-		ENDIFNECESSARY3;
-		it++;
-	}
-
-	ENDIFNECESSARY3;
-
-	auto flags = *it++;
-
-	ENDIFNECESSARY3;
-
-	int senderNum = *it++;
-
-	ENDIFNECESSARY3;
-
-	int numberType = *it++;
-
-	int snum = senderNum + (senderNum % 2);
-
-	std::wstring number;
-
-	for (int i = 0; i < snum; i += 2, it++)
-	{
-		ENDIFNECESSARY3;
-
-		number.push_back(L'0' + ((*it) & 0xF));
-		number.push_back(L'0' + (((*it) >> 4) & 0xF));
-	}
-
-	if (number.size() < senderNum)
-	{
-		return FALSE;
-	}
-
-	// assume from is empty
-	from->append(number.c_str(), senderNum);
-
-	ENDIFNECESSARY3;
-
-	auto proto = *it++;
-
-	ENDIFNECESSARY3;
-
-	auto scheme = *it++;
-
-	ENDIFNECESSARY3;
-
-	std::wstring timestamp;
-
-	for (int i = 0; i < 7; i++, it++)
-	{
-		ENDIFNECESSARY3;
-
-		timestamp.push_back(L'0' + ((*it) & 0xF));
-		timestamp.push_back(L'0' + (((*it) >> 4) & 0xF));
-	}
-
-	if (!ParseGsmDateTime(timestamp, datetime))
-	{
-		return FALSE;
-	}
-
-	ENDIFNECESSARY3;
-
-	buffer.erase(buffer.begin(), it);
-
-	DecodeGsm(buffer, message);
 
 	return TRUE;
 }
 
 void SendEmail(std::wstring& from, std::wstring& datetime, std::wstring& message)
 {
-
+	// todo
 }

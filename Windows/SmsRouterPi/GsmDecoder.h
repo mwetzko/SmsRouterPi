@@ -20,7 +20,7 @@ WCHAR GsmPage0[] = L"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæ
 WCHAR GsmPage1[] = L"??????????\n??\r??????^??????\x1b????????????{}?????\\????????????[~]?|????????????????????????????????????€??????????????????????????";
 // DO NOT CHANGE ============================================================================================================================================
 
-void DecodeGsmChar(BYTE code, LPWSTR* page, std::wstring* decoded)
+void DecodeGsmSeptet(BYTE code, LPWSTR* page, std::wstring* decoded)
 {
 	if (code == 0x1B)
 	{
@@ -28,45 +28,61 @@ void DecodeGsmChar(BYTE code, LPWSTR* page, std::wstring* decoded)
 		return;
 	}
 
-	if (*page != GsmPage0)
-	{
-		*page = GsmPage0;
-	}
-
 	decoded->push_back((*page)[code]);
+
+	*page = GsmPage0;
 }
 
-void DecodeGsm(std::vector<BYTE>& data, std::wstring* decoded)
+#define ENDIFNECESSARY if (it == end) return FALSE
+
+BOOL DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iterator end, int chars, int skip, std::wstring* decoded)
 {
 	*decoded = std::wstring();
-
-	auto it = data.begin();
-
-	auto num = *it++;
 
 	BYTE c = 0;
 
 	LPWSTR page = GsmPage0;
 
-	for (int i = 0; i < num; i++)
+	int num = 0;
+
+	int cchar = 0;
+
+	while (cchar < skip)
 	{
-		DecodeGsmChar((c | ((*it) << (i % 7))) & 0x7F, &page, decoded);
-
-		c = (*it) >> (7 - (i % 7));
-
-		if (((i + 1) % 7) == 0)
+		if ((num % 7) == 0 && c > 0)
 		{
-			DecodeGsmChar(c & 0x7F, &page, decoded);
 			c = 0;
+			cchar++;
+			continue;
 		}
 
-		it++;
+		ENDIFNECESSARY;
 
-		if (it == data.end())
-		{
-			break;
-		}
+		c = (*it++) >> (7 - (num++ % 7));
+
+		cchar++;
 	}
+
+	while (cchar < chars)
+	{
+		if ((num % 7) == 0 && c > 0)
+		{
+			DecodeGsmSeptet(c & 0x7F, &page, decoded);
+			c = 0;
+			cchar++;
+			continue;
+		}
+
+		ENDIFNECESSARY;
+
+		DecodeGsmSeptet((c | ((*it) << (num % 7))) & 0x7F, &page, decoded);
+
+		c = (*it++) >> (7 - (num++ % 7));
+
+		cchar++;
+	}
+
+	return TRUE;
 }
 
 void DecodeHexToBin(std::wstring& data, std::vector<BYTE>* decoded)
@@ -94,7 +110,6 @@ void DecodeHexToBin(std::wstring& data, std::vector<BYTE>* decoded)
 	}
 }
 
-#define ENDIFNECESSARY if (it == end) return FALSE
 #define ENDIFNECESSARY2 if (it == value.end()) return FALSE
 
 BOOL ParseDateTimeNumber(std::wstring::iterator& it, std::wstring::iterator end, PINT value)
@@ -231,6 +246,153 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	}
 
 	*datetime = FormatStr(L"%i-%02i-%02iT%02i:%02i:%02i%+02i:00", year, month, day, hour, minute, second, tz);
+
+	return TRUE;
+}
+
+BOOL GetMessageIndexFromListing(std::wstring& value, PINT index)
+{
+	auto it = value.begin();
+
+	ENDIFNECESSARY2;
+
+	while (*it++ != ' ')
+	{
+		ENDIFNECESSARY2;
+	}
+
+	ENDIFNECESSARY2;
+
+	int num = 0;
+
+	while (*it >= L'0' && *it <= L'9')
+	{
+		num *= 10;
+		num += ((*it++) - L'0');
+
+		ENDIFNECESSARY2;
+	}
+
+	*index = num;
+
+	return TRUE;
+}
+
+#define ENDIFNECESSARY3 if (it == buffer.end()) return FALSE
+
+BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, std::wstring* message)
+{
+	std::vector<BYTE> buffer;
+	DecodeHexToBin(pdu, &buffer);
+
+	auto it = buffer.begin();
+
+	ENDIFNECESSARY3;
+
+	int num = *it++;
+
+	while (num-- > 0)
+	{
+		ENDIFNECESSARY3;
+
+		it++;
+	}
+
+	ENDIFNECESSARY3;
+
+	auto flags = *it++;
+
+	ENDIFNECESSARY3;
+
+	int senderNum = *it++;
+
+	ENDIFNECESSARY3;
+
+	int numberType = *it++;
+
+	num = senderNum + (senderNum % 2);
+
+	std::wstring number;
+
+	for (int i = 0; i < num; i += 2, it++)
+	{
+		ENDIFNECESSARY3;
+
+		number.push_back(L'0' + ((*it) & 0xF));
+		number.push_back(L'0' + (((*it) >> 4) & 0xF));
+	}
+
+	if (number.size() < senderNum)
+	{
+		return FALSE;
+	}
+
+	// assume from is empty
+	from->append(number.c_str(), senderNum);
+
+	ENDIFNECESSARY3;
+
+	auto proto = *it++;
+
+	ENDIFNECESSARY3;
+
+	auto scheme = *it++;
+
+	ENDIFNECESSARY3;
+
+	std::wstring timestamp;
+
+	for (int i = 0; i < 7; i++, it++)
+	{
+		ENDIFNECESSARY3;
+
+		timestamp.push_back(L'0' + ((*it) & 0xF));
+		timestamp.push_back(L'0' + (((*it) >> 4) & 0xF));
+	}
+
+	if (!ParseGsmDateTime(timestamp, datetime))
+	{
+		return FALSE;
+	}
+
+	// VALIDITY INFO IF PRESENT
+	if (flags & 0x10)
+	{
+		if (flags & 0x08)
+		{
+			num = 7;
+		}
+		else
+		{
+			num = 1;
+		}
+
+		while (num-- > 0)
+		{
+			ENDIFNECESSARY3;
+
+			it++;
+		}
+	}
+
+	ENDIFNECESSARY3;
+
+	int len = *it++;
+
+	ENDIFNECESSARY3;
+
+	num = 0;
+
+	// HAS USER DATA HEADER
+	if (flags & 0x40)
+	{
+		// LENGTH OF HEADER
+		num = *it;
+
+		num = MulDiv(num + 1, 8, 7);
+	}
+
+	DecodeGsmSeptetData(it, buffer.end(), len, num, message);
 
 	return TRUE;
 }
