@@ -1,4 +1,5 @@
-
 /Windows/.vs
 /Windows/SmsRouterPi/bin
 /Windows/SmsRouterPi/obj
+/Windows/SmsRouterPi/vcpkg
+/Windows/SmsRouterPi/SmsRouterPi.vcxproj.user
