@@ -9,9 +9,6 @@
 
 #pragma once
 
-#include <Windows.h>
-#include <string>
-#include <vector>
 #include "Shared.h"
 
 // DO NOT CHANGE ============================================================================================================================================
@@ -409,9 +406,7 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 			temp.push_back(*it++);
 		}
 
-		std::wstring_convert<std::codecvt_utf16<wchar_t>> cvt;
-
-		*message = cvt.from_bytes(temp);
+		*message = std::wstring((LPWSTR)temp.c_str(), (LPWSTR)temp.c_str() + (temp.length() / sizeof(wchar_t)));
 	}
 	else if (scheme & 0x4)
 	{

@@ -9,9 +9,7 @@
 
 #pragma once
 
-#include <Windows.h>
-#include <string>
-#include <codecvt>
+#include "Shared.h"
 
 class OverlappedComm
 {
@@ -19,7 +17,6 @@ private:
 	LPCWSTR mPort;
 	HANDLE mCom;
 	std::string mReadLineBuffer;
-	std::wstring_convert<std::codecvt_utf8<wchar_t>> mConvert;
 	HANDLE mWriteReset;
 	LPSTR mReadBuffer;
 	DWORD mReadBufferNum;
@@ -68,7 +65,7 @@ public:
 
 	BOOL WriteLine(HANDLE cancel, LPCWSTR cmd)
 	{
-		std::string str = mConvert.to_bytes(std::wstring(cmd)).append("\r\n");
+		std::string str = wstringToUtf8(cmd).append("\r\n");
 
 		DWORD written;
 		OVERLAPPED op = { 0 };
@@ -134,7 +131,7 @@ public:
 					continue;
 				}
 
-				*line = mConvert.from_bytes(str);
+				*line = Utf8ToWstring(str);
 
 				return TRUE;
 			}

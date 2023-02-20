@@ -7,18 +7,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <iostream>
-#include <Windows.h>
-#include <vector>
-#include <string>
-#include <mutex>
-#include <SetupAPI.h>
-#include <map>
 #include "OverlappedComm.h"
 #include "GsmDecoder.h"
 #include "Shared.h"
 
 #pragma comment (lib, "SetupAPI.lib")
+#pragma comment (lib, "Crypt32.lib")
 
 #define BUFFER_LENGTH 48
 
@@ -35,16 +29,40 @@ void RemoveCommPort(LPCWSTR);
 void GetRemainingThreads(std::vector<HANDLE>*);
 DWORD WINAPI ProcessCommPort(LPVOID);
 void ProcessCommLoop(OverlappedComm&);
-BOOL ProcessMessages(OverlappedComm&);
-void SendEmail(std::wstring&, std::wstring&, std::wstring&);
+BOOL ProcessMessages(const std::wstring&, OverlappedComm&);
 
-int main()
+std::wstring smtpusername;
+std::wstring smtppassword;
+std::wstring smtpserver;
+std::wstring smtpfromto;
+
+int wmain(int argc, wchar_t* argv[])
 {
+	std::map<std::wstring, std::wstring, WideStringCIComparer> parsed;
+	ParseArguments(argc, argv, parsed);
+
+	if (!ValidateArguments(parsed, { L"username", L"password", L"serverurl", L"fromto" }))
+	{
+		std::wcerr << L"Usage: " << argv[0] << L" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>" << std::endl;
+		return 1;
+	}
+
+	smtpusername = parsed[L"username"];
+	smtppassword = parsed[L"password"];
+	smtpserver = parsed[L"serverurl"];
+	smtpfromto = parsed[L"fromto"];
+
+	if (!SendEmail(L"[TEST]", L"[TEST]", L"[TEST]", L"[TEST]", smtpusername, smtppassword, smtpserver, smtpfromto))
+	{
+		std::wcerr << L"Failed to send test mail!" << std::endl;
+		return 2;
+	}
+
 	ExitApp = CreateEventW(NULL, TRUE, FALSE, NULL);
 
 	if (!ExitApp)
 	{
-		return -1;
+		return 3;
 	}
 
 	UINT_PTR timer = SetTimer(NULL, NULL, 10000, TimerCallback);
@@ -82,7 +100,7 @@ void CheckHardwareID(DWORD vid, DWORD pid)
 
 	LPWSTR str = new WCHAR[MAX_PATH];
 
-	HDEVINFO devInfo = SetupDiGetClassDevsW(&GUID_SERENUM_BUS_ENUMERATOR, NULL, NULL, DIGCF_PRESENT);
+	HDEVINFO devInfo = SetupDiGetClassDevsW(&GUID_DEVINTERFACE_SERENUM_BUS_ENUMERATOR, NULL, NULL, DIGCF_PRESENT);
 
 	SP_DEVINFO_DATA devInfoData;
 	devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
@@ -208,7 +226,17 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
-	if (!ProcessMessages(ofm))
+	std::wstring number;
+	if (!ofm.ExecuteATCommandResult(ExitApp, L"AT+CNUM", &number))
+	{
+		ofm.OutputConsole(L"Get own number command failed!");
+		return;
+	}
+
+	std::wstring pnumber;
+	ParseSubscriberNumber(number, pnumber);
+
+	if (!ProcessMessages(pnumber, ofm))
 	{
 		return;
 	}
@@ -223,7 +251,7 @@ void ProcessCommLoop(OverlappedComm& ofm)
 	{
 		if (wcsstr(line.c_str(), L"+CMTI") == line.c_str())
 		{
-			if (!ProcessMessages(ofm))
+			if (!ProcessMessages(pnumber, ofm))
 			{
 				return;
 			}
@@ -231,7 +259,7 @@ void ProcessCommLoop(OverlappedComm& ofm)
 	}
 }
 
-BOOL ProcessMessages(OverlappedComm& ofm)
+BOOL ProcessMessages(const std::wstring& number, OverlappedComm& ofm)
 {
 	std::vector<std::wstring> lines;
 	if (!ofm.ExecuteATCommandResults(ExitApp, L"AT+CMGL=4", &lines))
@@ -257,7 +285,11 @@ BOOL ProcessMessages(OverlappedComm& ofm)
 			std::wstring message;
 			if (ParseGsmPDU(*(it++), &from, &datetime, &message))
 			{
-				SendEmail(from, datetime, message);
+				while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
+				{
+					ofm.OutputConsole(L"Failed to send email. Trying again in 30 minutes.");
+					Sleep(1800000);
+				}
 			}
 		}
 
@@ -269,9 +301,4 @@ BOOL ProcessMessages(OverlappedComm& ofm)
 	}
 
 	return TRUE;
-}
-
-void SendEmail(std::wstring& from, std::wstring& datetime, std::wstring& message)
-{
-	// todo
 }
