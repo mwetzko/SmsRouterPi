@@ -182,7 +182,7 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
-	if (!wcsstr(line.c_str(), PLATFORMSTR("READY")))
+	if (line.find(PLATFORMSTR("READY")) < 0)
 	{
 		ofm.OutputConsole(PLATFORMSTR("SIM card requires a PIN. Remove the PIN and try again!"));
 		return;
@@ -217,7 +217,7 @@ void ProcessCommLoop(OverlappedComm& ofm)
 
 	while (ofm.ReadLine(ExitApp, &line))
 	{
-		if (wcsstr(line.c_str(), PLATFORMSTR("+CMTI")) == line.c_str())
+		if (line.starts_with(PLATFORMSTR("+CMTI")))
 		{
 			if (!ProcessMessages(pnumber, ofm))
 			{
@@ -238,7 +238,7 @@ bool ProcessMessages(const PlatformString& number, OverlappedComm& ofm)
 
 	auto it = lines.begin();
 
-	while (it != lines.end() && wcsstr(it->c_str(), PLATFORMSTR("+CMGL")) == it->c_str())
+	while (it != lines.end() && it->starts_with(PLATFORMSTR("+CMGL")))
 	{
 		int index;
 		if (!GetMessageIndexFromListing(*it, &index))
