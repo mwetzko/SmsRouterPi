@@ -126,6 +126,7 @@ void RemoveCommPort(const PlatformString& port)
 
 	if (it != Ports.end())
 	{
+		it->second->detach();
 		Ports.erase(it);
 	}
 }
