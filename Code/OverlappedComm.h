@@ -14,16 +14,16 @@
 class OverlappedComm
 {
 private:
-	LPCWSTR mPort;
+	PlatformString mPort;
 	HANDLE mCom;
-	std::string mReadLineBuffer;
+	Utf8String mReadLineBuffer;
 	HANDLE mWriteReset;
-	LPSTR mReadBuffer;
-	DWORD mReadBufferNum;
+	Utf8Char* mReadBuffer;
+	std::uint32_t mReadBufferNum;
 	HANDLE mReadReset;
 
 public:
-	OverlappedComm(LPCWSTR port, HANDLE com)
+	OverlappedComm(const PlatformString& port, HANDLE com)
 	{
 		mPort = port;
 
@@ -32,7 +32,7 @@ public:
 		mWriteReset = CreateEventW(NULL, TRUE, FALSE, NULL);
 
 		mReadBufferNum = 256;
-		mReadBuffer = new CHAR[mReadBufferNum];
+		mReadBuffer = new Utf8Char[mReadBufferNum];
 
 		mReadReset = CreateEventW(NULL, TRUE, FALSE, NULL);
 	}
@@ -45,58 +45,58 @@ public:
 		delete[] mReadBuffer;
 	}
 
-	BOOL WaitCancelOverlapped(HANDLE cancel, HANDLE overlapped)
+	bool WaitCancelOverlapped(HANDLE cancel, HANDLE overlapped)
 	{
 		HANDLE waits[] = { cancel, overlapped };
 		DWORD num = WaitForMultipleObjects(sizeof(waits) / sizeof(waits[0]), (const HANDLE*)(&waits), FALSE, INFINITE);
 
 		if (num == MAXDWORD)
 		{
-			return FALSE;
+			return false;
 		}
 
 		if ((num - WAIT_OBJECT_0) == 0)
 		{
-			return FALSE;
+			return false;
 		}
 
-		return TRUE;
+		return true;
 	}
 
-	BOOL WriteLine(HANDLE cancel, LPCWSTR cmd)
+	bool WriteLine(HANDLE cancel, const PlatformString& cmd)
 	{
-		std::string str = wstringToUtf8(cmd).append("\r\n");
+		Utf8String str = PlatformStringToUtf8(cmd).append("\r\n");
 
 		DWORD written;
 		OVERLAPPED op = { 0 };
 		op.hEvent = mWriteReset;
-		if (!WriteFile(mCom, str.c_str(), (DWORD)str.size() * sizeof(CHAR), &written, &op))
+		if (!WriteFile(mCom, str.c_str(), (DWORD)str.size() * sizeof(Utf8Char), &written, &op))
 		{
 			if (GetLastError() != ERROR_IO_PENDING)
 			{
-				return FALSE;
+				return false;
 			}
 
 			if (!WaitCancelOverlapped(cancel, mWriteReset))
 			{
-				return FALSE;
+				return false;
 			}
 
 			if (!GetOverlappedResult(mCom, &op, &written, TRUE))
 			{
-				return FALSE;
+				return false;
 			}
 		}
 
-		return TRUE;
+		return true;
 	}
 
-	BOOL IsEndLine(std::string::iterator& it)
+	bool IsEndLine(Utf8String::iterator& it)
 	{
 		return *it == '\r' || *it == '\n';
 	}
 
-	std::string::iterator GetNewLinePos(std::string::iterator* end)
+	Utf8String::iterator GetNewLinePos(Utf8String::iterator* end)
 	{
 		for (auto it = mReadLineBuffer.begin(); it != mReadLineBuffer.end(); it++)
 		{
@@ -113,16 +113,16 @@ public:
 		return mReadLineBuffer.end();
 	}
 
-	BOOL ReadLine(HANDLE cancel, std::wstring* line)
+	bool ReadLine(HANDLE cancel, PlatformString* line)
 	{
 		while (WaitForSingleObject(cancel, 0))
 		{
-			std::string::iterator end;
-			std::string::iterator it = GetNewLinePos(&end);
+			Utf8String::iterator end;
+			Utf8String::iterator it = GetNewLinePos(&end);
 
 			if (it != mReadLineBuffer.end())
 			{
-				auto str = std::string(mReadLineBuffer.begin(), it);
+				auto str = Utf8String(mReadLineBuffer.begin(), it);
 
 				mReadLineBuffer.erase(mReadLineBuffer.begin(), end);
 
@@ -131,9 +131,9 @@ public:
 					continue;
 				}
 
-				*line = Utf8ToWstring(str);
+				*line = Utf8ToPlatformString(str);
 
-				return TRUE;
+				return true;
 			}
 
 			DWORD read;
@@ -143,92 +143,92 @@ public:
 			{
 				if (GetLastError() != ERROR_IO_PENDING)
 				{
-					return FALSE;
+					return false;
 				}
 
 				if (!WaitCancelOverlapped(cancel, mReadReset))
 				{
-					return FALSE;
+					return false;
 				}
 
 				if (!GetOverlappedResult(mCom, &op, &read, TRUE))
 				{
-					return FALSE;
+					return false;
 				}
 			}
 
 			mReadLineBuffer.append(mReadBuffer, read);
 		}
 
-		return FALSE;
+		return false;
 	}
 
-	BOOL IsOKCommand(std::wstring& line)
+	bool IsOKCommand(PlatformString& line)
 	{
-		return wcscmp(L"OK", line.c_str()) == 0;
+		return wcscmp(PLATFORMSTR("OK"), line.c_str()) == 0;
 	}
 
-	BOOL IsErrorCommand(std::wstring& line)
+	bool IsErrorCommand(PlatformString& line)
 	{
-		return wcscmp(L"ERROR", line.c_str()) == 0;
+		return wcscmp(PLATFORMSTR("ERROR"), line.c_str()) == 0;
 	}
 
-	BOOL IsOKOrErrorCommand(std::wstring& line)
+	bool IsOKOrErrorCommand(PlatformString& line)
 	{
 		return IsOKCommand(line) || IsErrorCommand(line);
 	}
 
-	BOOL ExecuteATCommand(HANDLE cancel, LPCWSTR cmd)
+	bool ExecuteATCommand(HANDLE cancel, const PlatformString& cmd)
 	{
 		if (!this->WriteLine(cancel, cmd))
 		{
-			return FALSE;
+			return false;
 		}
 
-		std::wstring line;
+		PlatformString line;
 		if (!this->ReadLine(cancel, &line))
 		{
-			return FALSE;
+			return false;
 		}
 
-		if (wcscmp(cmd, line.c_str()) != 0)
+		if (!Equal(cmd, line))
 		{
-			return FALSE;
+			return false;
 		}
 
 		if (!this->ReadLine(cancel, &line))
 		{
-			return FALSE;
+			return false;
 		}
 
 		return IsOKCommand(line);
 	}
 
-	BOOL ExecuteATCommandResults(HANDLE cancel, LPCWSTR cmd, std::vector<std::wstring>* lines)
+	bool ExecuteATCommandResults(HANDLE cancel, const PlatformString& cmd, std::vector<PlatformString>* lines)
 	{
-		*lines = std::vector<std::wstring>();
+		*lines = std::vector<PlatformString>();
 
 		if (!this->WriteLine(cancel, cmd))
 		{
-			return FALSE;
+			return false;
 		}
 
-		std::wstring line;
+		PlatformString line;
 		if (!this->ReadLine(cancel, &line))
 		{
-			return FALSE;
+			return false;
 		}
 
-		if (wcscmp(cmd, line.c_str()) != 0)
+		if (!Equal(cmd, line))
 		{
-			return FALSE;
+			return false;
 		}
 
 		while (true)
 		{
 			if (!this->ReadLine(cancel, &line))
 			{
-				return FALSE;
+				return false;
 			}
 
 			if (IsOKOrErrorCommand(line))
@@ -239,15 +239,15 @@ public:
 			lines->push_back(line);
 		}
 
-		return TRUE;
+		return true;
 	}
 
-	BOOL ExecuteATCommandResult(HANDLE cancel, LPCWSTR cmd, std::wstring* line)
+	bool ExecuteATCommandResult(HANDLE cancel, const PlatformString& cmd, PlatformString* line)
 	{
-		std::vector<std::wstring>lines;
+		std::vector<PlatformString>lines;
 		if (!ExecuteATCommandResults(cancel, cmd, &lines))
 		{
-			return FALSE;
+			return false;
 		}
 
 		auto it = lines.begin();
@@ -257,11 +257,11 @@ public:
 			*line = *it;
 		}
 
-		return TRUE;
+		return true;
 	}
 
-	void OutputConsole(LPCWSTR msg)
+	void OutputConsole(const PlatformString& msg)
 	{
-		std::wcout << L"Device at " << mPort << L": " << msg << std::endl;
+		PLATFORMCOUT << PLATFORMSTR("Device at ") << mPort << PLATFORMSTR(": ") << msg << std::endl;
 	}
 };

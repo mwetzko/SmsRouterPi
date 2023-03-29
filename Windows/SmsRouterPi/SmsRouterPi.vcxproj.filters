@@ -1,11 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="Main.cpp" />
+    <ClInclude Include="..\..\Code\GsmDecoder.h" />
+    <ClInclude Include="..\..\Code\OverlappedComm.h" />
+    <ClInclude Include="..\..\Code\Shared.h" />
+    <ClInclude Include="..\..\Code\Env.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="OverlappedComm.h" />
-    <ClInclude Include="GsmDecoder.h" />
-    <ClInclude Include="Shared.h" />
+    <ClCompile Include="..\..\Code\MainLoop.cpp" />
+    <ClCompile Include="WindowsEnv.cpp" />
+    <ClCompile Include="..\..\Code\Shared.cpp" />
   </ItemGroup>
 </Project>

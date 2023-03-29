@@ -15,12 +15,12 @@ try {
 	
 		$arch = $_
 	
-		@( , @("mailio:$($arch)-windows-static", "mailio\mailio.h") ) | ForEach-Object {
+		@( @("nlohmann-json:$($arch)-windows-static", "nlohmann\json.hpp") , @("mailio:$($arch)-windows-static", "mailio\message.hpp") ) | ForEach-Object {
 	
 			$pack = $_[0]
 			$header = $_[1]
 	
-			if (!(Test-Path (Join-Path -Path ".\vcpkg\installed\$($arch)-windows\include" -ChildPath $header))) {
+			if (!(Test-Path (Join-Path -Path ".\vcpkg\installed\$($arch)-windows-static\include" -ChildPath $header))) {
 				Write-Information "Installing $($pack)..."
 				& ".\vcpkg\vcpkg.exe" install $pack
 			}
