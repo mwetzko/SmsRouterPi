@@ -56,9 +56,12 @@ bool SendEmail(const PlatformString& from, const PlatformString& to, const Platf
 	try
 	{
 		mailio::message msg;
+		msg.header_codec(mailio::message::header_codec_t::BASE64);
+		msg.content_transfer_encoding(mailio::mime::content_transfer_encoding_t::BASE_64);
 		msg.from(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
 		msg.add_recipient(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
 		msg.subject("SMS received");
+		msg.content_type(mailio::mime::media_type_t::TEXT, "PLAIN", "UTF-8");
 		msg.content(PlatformStringToUtf8(PlatformString(PLATFORMSTR("Sender: ")).append(from).append(PLATFORMSTR("\r\n")).
 			append(PLATFORMSTR("Tel received: ")).append(to).append(PLATFORMSTR("\r\n")).
 			append(PLATFORMSTR("Date received: ")).append(datetime).append(PLATFORMSTR("\r\n\r\n")).

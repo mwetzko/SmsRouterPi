@@ -205,6 +205,8 @@ void ProcessCommLoop(OverlappedComm& ofm)
 	PlatformString pnumber;
 	ParseSubscriberNumber(number, pnumber);
 
+	ofm.OutputConsole(PLATFORMSTR("Phone number is "), pnumber);
+
 	if (!ProcessMessages(pnumber, ofm))
 	{
 		return;
@@ -220,6 +222,8 @@ void ProcessCommLoop(OverlappedComm& ofm)
 	{
 		if (line.starts_with(PLATFORMSTR("+CMTI")))
 		{
+			ofm.OutputConsole(PLATFORMSTR("Processing new SMS..."));
+
 			if (!ProcessMessages(pnumber, ofm))
 			{
 				return;

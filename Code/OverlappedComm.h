@@ -260,8 +260,13 @@ public:
 		return true;
 	}
 
-	void OutputConsole(const PlatformString& msg)
+	template<typename... Args>
+	void OutputConsole(Args&&... args)
 	{
-		PLATFORMCOUT << PLATFORMSTR("Device at ") << mPort << PLATFORMSTR(": ") << msg << std::endl;
+		PLATFORMCOUT << PLATFORMSTR("Device at ") << mPort << PLATFORMSTR(": ");
+
+		(PLATFORMCOUT << ... << args);
+
+		PLATFORMCOUT << std::endl;
 	}
 };
