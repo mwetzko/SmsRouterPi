@@ -11,27 +11,23 @@
 
 #include <string>
 
-#if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
-
-#include <SDKDDKVer.h>
-
-using PlatformString = std::wstring;
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout
 #define PLATFORMCERR std::wcerr
 
-#endif
-
-using PlatformChar = std::_Get_element_type<PlatformString>::type;
+using PlatformString = std::wstring;
+using PlatformChar = PlatformString::value_type;
 
 using Utf8String = std::string;
-using Utf8Char = std::_Get_element_type<Utf8String>::type;
+using Utf8Char = Utf8String::value_type;
 
 int MainLoop(int, PlatformChar**);
 void EnsureCommPort(const PlatformString&);
 void CheckHardwareID(std::uint32_t, std::uint32_t);
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
+
+#include <SDKDDKVer.h>
 
 template<typename ...Args>
 PlatformString FormatStr(const PlatformString& format, Args... args)

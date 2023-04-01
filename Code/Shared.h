@@ -21,6 +21,7 @@
 
 Utf8String PlatformStringToUtf8(const PlatformString& str);
 PlatformString Utf8ToPlatformString(const Utf8String& str);
+PlatformString UCS2ToPlatformString(const std::u16string& str);
 
 template<typename... Args>
 PlatformString FormatStr(const PlatformString& format, Args... args);

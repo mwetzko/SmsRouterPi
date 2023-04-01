@@ -406,7 +406,7 @@ bool ParseGsmPDU(PlatformString& pdu, PlatformString* from, PlatformString* date
 			temp.push_back(*it++);
 		}
 
-		*message = PlatformString((PlatformChar*)temp.c_str(), (PlatformChar*)temp.c_str() + (temp.length() / sizeof(PlatformChar)));
+		*message = UCS2ToPlatformString(std::u16string((std::u16string::value_type*)temp.c_str(), (std::u16string::value_type*)temp.c_str() + (temp.length() / sizeof(std::u16string::value_type))));
 	}
 	else if (scheme & 0x4)
 	{

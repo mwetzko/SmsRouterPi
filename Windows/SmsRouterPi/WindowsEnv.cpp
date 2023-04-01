@@ -69,7 +69,7 @@ Utf8String PlatformStringToUtf8(const PlatformString& str)
 
 	Utf8String cvt(needed, 0);
 
-	WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), (Utf8Char*)cvt.c_str(), (int)cvt.size(), NULL, NULL);
+	WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), (LPSTR)cvt.c_str(), (int)cvt.size(), NULL, NULL);
 
 	return cvt;
 }
@@ -83,4 +83,10 @@ PlatformString Utf8ToPlatformString(const Utf8String& str)
 	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), (PlatformChar*)cvt.c_str(), (int)cvt.size());
 
 	return cvt;
+}
+
+PlatformString UCS2ToPlatformString(const std::u16string& str)
+{
+	// on windows wstring is u16string
+	return PlatformString(str.begin(), str.end());
 }
