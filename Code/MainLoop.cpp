@@ -7,9 +7,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "Shared.h"
 #include "OverlappedComm.h"
 #include "GsmDecoder.h"
-#include "Shared.h"
 #include "nlohmann/json.hpp"
 #include <filesystem>
 

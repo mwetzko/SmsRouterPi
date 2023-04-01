@@ -13,6 +13,8 @@
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
+#include <SDKDDKVer.h>
+
 using PlatformString = std::wstring;
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout

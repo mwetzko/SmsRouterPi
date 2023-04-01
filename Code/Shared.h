@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "Env.h"
 #include <iostream>
 #include <vector>
 #include <mutex>
@@ -17,7 +18,6 @@
 #include <algorithm>
 #include <mailio/message.hpp>
 #include <mailio/smtp.hpp>
-#include "Env.h"
 
 Utf8String PlatformStringToUtf8(const PlatformString& str);
 PlatformString Utf8ToPlatformString(const Utf8String& str);
