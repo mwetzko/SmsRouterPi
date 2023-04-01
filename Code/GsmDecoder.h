@@ -12,12 +12,12 @@
 #include "Shared.h"
 
 // DO NOT CHANGE ============================================================================================================================================
-WCHAR GsmPage0[] = L"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+PlatformChar GsmPage0[] = PLATFORMSTR("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà");
 // DO NOT CHANGE ============================================================================================================================================
-WCHAR GsmPage1[] = L"??????????\n??\r??????^??????\x1b????????????{}?????\\????????????[~]?|????????????????????????????????????€??????????????????????????";
+PlatformChar GsmPage1[] = PLATFORMSTR("??????????\n??\r??????^??????\x1b????????????{}?????\\????????????[~]?|????????????????????????????????????€??????????????????????????");
 // DO NOT CHANGE ============================================================================================================================================
 
-void DecodeGsmSeptet(BYTE code, LPWSTR* page, std::wstring* decoded)
+void DecodeGsmSeptet(BYTE code, PlatformChar** page, PlatformString* decoded)
 {
 	if (code == 0x1B)
 	{
@@ -30,15 +30,15 @@ void DecodeGsmSeptet(BYTE code, LPWSTR* page, std::wstring* decoded)
 	*page = GsmPage0;
 }
 
-#define ENDIFNECESSARY if (it == end) return FALSE
+#define ENDIFNECESSARY if (it == end) return false
 
-BOOL DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iterator end, int chars, int skip, std::wstring* decoded)
+bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iterator end, int chars, int skip, PlatformString* decoded)
 {
-	*decoded = std::wstring();
+	*decoded = PlatformString();
 
 	BYTE c = 0;
 
-	LPWSTR page = GsmPage0;
+	PlatformChar* page = GsmPage0;
 
 	int num = 0;
 
@@ -79,14 +79,14 @@ BOOL DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iter
 		cchar++;
 	}
 
-	return TRUE;
+	return true;
 }
 
-void DecodeHexToBin(std::wstring& data, std::vector<BYTE>* decoded)
+void DecodeHexToBin(PlatformString& data, std::vector<BYTE>* decoded)
 {
 	*decoded = std::vector<BYTE>();
 
-	WCHAR buff[] = L"\0\0";
+	PlatformChar buff[] = PLATFORMSTR("\0\0");
 
 	for (auto it = data.begin(); it != data.end(); it++)
 	{
@@ -107,15 +107,15 @@ void DecodeHexToBin(std::wstring& data, std::vector<BYTE>* decoded)
 	}
 }
 
-#define ENDIFNECESSARY2 if (it == value.end()) return FALSE
+#define ENDIFNECESSARY2 if (it == value.end()) return false
 
-BOOL ParseDateTimeNumber(std::wstring::iterator& it, std::wstring::iterator end, PINT value)
+bool ParseDateTimeNumber(PlatformString::iterator& it, PlatformString::iterator end, PINT value)
 {
 	ENDIFNECESSARY;
 
 	if (!(bool)iswdigit(*it))
 	{
-		return FALSE;
+		return false;
 	}
 
 	auto itx = it++;
@@ -124,21 +124,21 @@ BOOL ParseDateTimeNumber(std::wstring::iterator& it, std::wstring::iterator end,
 
 	if (!(bool)iswdigit(*it))
 	{
-		return FALSE;
+		return false;
 	}
 
 	*value = ((*itx - L'0') * 10) + (*it - L'0');
 
-	return TRUE;
+	return true;
 }
 
-BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
+bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 {
 	std::time_t t = std::time(NULL);
 	std::tm tx;
 	if (localtime_s(&tx, &t) != 0)
 	{
-		return FALSE;
+		return false;
 	}
 
 	int currentyear = 1900 + tx.tm_year;
@@ -148,7 +148,7 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int year;
 	if (!ParseDateTimeNumber(it, value.end(), &year))
 	{
-		return FALSE;
+		return false;
 	}
 
 	year += (currentyear / 100) * 100;
@@ -163,12 +163,12 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int month;
 	if (!ParseDateTimeNumber(it, value.end(), &month))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (month < 1 || month > 12)
 	{
-		return FALSE;
+		return false;
 	}
 
 	it++;
@@ -176,12 +176,12 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int day;
 	if (!ParseDateTimeNumber(it, value.end(), &day))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (day < 1 || day > 31)
 	{
-		return FALSE;
+		return false;
 	}
 
 	it++;
@@ -189,12 +189,12 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int hour;
 	if (!ParseDateTimeNumber(it, value.end(), &hour))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (hour < 0 || hour > 23)
 	{
-		return FALSE;
+		return false;
 	}
 
 	it++;
@@ -202,12 +202,12 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int minute;
 	if (!ParseDateTimeNumber(it, value.end(), &minute))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (minute < 0 || minute > 59)
 	{
-		return FALSE;
+		return false;
 	}
 
 	it++;
@@ -215,25 +215,25 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 	int second;
 	if (!ParseDateTimeNumber(it, value.end(), &second))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (second < 0 || second > 59)
 	{
-		return FALSE;
+		return false;
 	}
 
 	it++;
 
 	ENDIFNECESSARY2;
 
-	int tz = *it - L'0';
+	int tz = *it - PLATFORMSTR('0');
 
 	it++;
 
 	ENDIFNECESSARY2;
 
-	int tz1 = *it - L'0';
+	int tz1 = *it - PLATFORMSTR('0');
 
 	tz = (((tz1 & 0x7F) + tz) * 15) / 60;
 
@@ -244,10 +244,10 @@ BOOL ParseGsmDateTime(std::wstring& value, std::wstring* datetime)
 
 	*datetime = FormatStr(L"%i-%02i-%02iT%02i:%02i:%02i%+02i:00", year, month, day, hour, minute, second, tz);
 
-	return TRUE;
+	return true;
 }
 
-BOOL GetMessageIndexFromListing(std::wstring& value, PINT index)
+bool GetMessageIndexFromListing(PlatformString& value, PINT index)
 {
 	auto it = value.begin();
 
@@ -272,12 +272,12 @@ BOOL GetMessageIndexFromListing(std::wstring& value, PINT index)
 
 	*index = num;
 
-	return TRUE;
+	return true;
 }
 
-#define ENDIFNECESSARY3 if (it == buffer.end()) return FALSE
+#define ENDIFNECESSARY3 if (it == buffer.end()) return false
 
-BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, std::wstring* message)
+bool ParseGsmPDU(PlatformString& pdu, PlatformString* from, PlatformString* datetime, PlatformString* message)
 {
 	std::vector<BYTE> buffer;
 	DecodeHexToBin(pdu, &buffer);
@@ -309,7 +309,7 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 
 	num = senderNum + (senderNum % 2);
 
-	std::wstring number;
+	PlatformString number;
 
 	for (int i = 0; i < num; i += 2, it++)
 	{
@@ -321,7 +321,7 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 
 	if (number.size() < senderNum)
 	{
-		return FALSE;
+		return false;
 	}
 
 	// assume from is empty
@@ -337,7 +337,7 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 
 	ENDIFNECESSARY3;
 
-	std::wstring timestamp;
+	PlatformString timestamp;
 
 	for (int i = 0; i < 7; i++, it++)
 	{
@@ -349,7 +349,7 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 
 	if (!ParseGsmDateTime(timestamp, datetime))
 	{
-		return FALSE;
+		return false;
 	}
 
 	// VALIDITY INFO IF PRESENT
@@ -406,12 +406,12 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 			temp.push_back(*it++);
 		}
 
-		*message = std::wstring((LPWSTR)temp.c_str(), (LPWSTR)temp.c_str() + (temp.length() / sizeof(wchar_t)));
+		*message = PlatformString((PlatformChar*)temp.c_str(), (PlatformChar*)temp.c_str() + (temp.length() / sizeof(PlatformChar)));
 	}
 	else if (scheme & 0x4)
 	{
 		// Binary Message
-		return FALSE;
+		return false;
 	}
 	else
 	{
@@ -428,5 +428,5 @@ BOOL ParseGsmPDU(std::wstring& pdu, std::wstring* from, std::wstring* datetime, 
 		DecodeGsmSeptetData(it, buffer.end(), len, num, message);
 	}
 
-	return TRUE;
+	return true;
 }
