@@ -94,7 +94,7 @@ void DecodeHexToBin(PlatformString& data, std::vector<BYTE>* decoded)
 
 		if (it == data.end())
 		{
-			buff[1] = L'\0';
+			buff[1] = PLATFORMSTR('\0');
 			decoded->push_back((BYTE)wcstoul(buff, NULL, 16));
 			break;
 		}
@@ -127,7 +127,7 @@ bool ParseDateTimeNumber(PlatformString::iterator& it, PlatformString::iterator 
 		return false;
 	}
 
-	*value = ((*itx - L'0') * 10) + (*it - L'0');
+	*value = ((*itx - PLATFORMSTR('0')) * 10) + (*it - PLATFORMSTR('0'));
 
 	return true;
 }
@@ -242,7 +242,7 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 		tz *= -1;
 	}
 
-	*datetime = FormatStr(L"%i-%02i-%02iT%02i:%02i:%02i%+02i:00", year, month, day, hour, minute, second, tz);
+	*datetime = FormatStr(PLATFORMSTR("%i-%02i-%02iT%02i:%02i:%02i%+02i:00"), year, month, day, hour, minute, second, tz);
 
 	return true;
 }
@@ -262,10 +262,10 @@ bool GetMessageIndexFromListing(PlatformString& value, PINT index)
 
 	int num = 0;
 
-	while (*it >= L'0' && *it <= L'9')
+	while (*it >= PLATFORMSTR('0') && *it <= PLATFORMSTR('9'))
 	{
 		num *= 10;
-		num += ((*it++) - L'0');
+		num += ((*it++) - PLATFORMSTR('0'));
 
 		ENDIFNECESSARY2;
 	}
@@ -315,8 +315,8 @@ bool ParseGsmPDU(PlatformString& pdu, PlatformString* from, PlatformString* date
 	{
 		ENDIFNECESSARY3;
 
-		number.push_back(L'0' + ((*it) & 0xF));
-		number.push_back(L'0' + (((*it) >> 4) & 0xF));
+		number.push_back(PLATFORMSTR('0') + ((*it) & 0xF));
+		number.push_back(PLATFORMSTR('0') + (((*it) >> 4) & 0xF));
 	}
 
 	if (number.size() < senderNum)
@@ -343,8 +343,8 @@ bool ParseGsmPDU(PlatformString& pdu, PlatformString* from, PlatformString* date
 	{
 		ENDIFNECESSARY3;
 
-		timestamp.push_back(L'0' + ((*it) & 0xF));
-		timestamp.push_back(L'0' + (((*it) >> 4) & 0xF));
+		timestamp.push_back(PLATFORMSTR('0') + ((*it) & 0xF));
+		timestamp.push_back(PLATFORMSTR('0') + (((*it) >> 4) & 0xF));
 	}
 
 	if (!ParseGsmDateTime(timestamp, datetime))
