@@ -74,14 +74,12 @@ public:
 			return false;
 		}
 
-		if (!Equal(cmd, line))
+		if (Equal(cmd, line))
 		{
-			return false;
-		}
-
-		if (!this->ReadLine(&line))
-		{
-			return false;
+			if (!this->ReadLine(&line))
+			{
+				return false;
+			}
 		}
 
 		return this->IsOKCommand(line);
@@ -102,24 +100,27 @@ public:
 			return false;
 		}
 
-		if (!Equal(cmd, line))
-		{
-			return false;
-		}
-
-		while (true)
+		if (Equal(cmd, line))
 		{
 			if (!this->ReadLine(&line))
 			{
 				return false;
 			}
+		}
 
+		while (true)
+		{
 			if (this->IsOKOrErrorCommand(line))
 			{
 				break;
 			}
 
 			lines->push_back(line);
+
+			if (!this->ReadLine(&line))
+			{
+				return false;
+			}
 		}
 
 		return true;
