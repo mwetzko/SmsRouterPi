@@ -50,3 +50,103 @@ bool Equal(const T& a, const T& b)
 {
 	return std::equal(a.begin(), a.end(), b.begin(), b.end());
 }
+
+class PlatformSerial
+{
+protected:
+	Utf8String mReadLineBuffer;
+	Utf8Char* mReadBuffer;
+	std::uint32_t mReadBufferNum;
+
+	PlatformSerial()
+	{
+		mReadBufferNum = 256;
+		mReadBuffer = new Utf8Char[mReadBufferNum];
+	}
+
+	~PlatformSerial()
+	{
+		delete[] mReadBuffer;
+	}
+
+	bool IsEndLine(Utf8String::iterator& it)
+	{
+		return *it == '\r' || *it == '\n';
+	}
+
+	Utf8String::iterator GetNewLinePos(Utf8String::iterator* end)
+	{
+		for (auto it = mReadLineBuffer.begin(); it != mReadLineBuffer.end(); it++)
+		{
+			if (this->IsEndLine(it))
+			{
+				*end = it;
+
+				while (++(*end) != mReadLineBuffer.end() && this->IsEndLine(*end));
+
+				return it;
+			}
+		}
+
+		return mReadLineBuffer.end();
+	}
+public:
+	virtual bool WriteLine(const Utf8String& cmd) = 0;
+	virtual bool ReadLine(Utf8String* str) = 0;
+};
+
+template<typename T>
+bool IsValidHandleValue(T arg)
+{
+	if constexpr (std::is_same_v<T, HANDLE>)
+	{
+		return arg != NULL && arg != INVALID_HANDLE_VALUE;
+	}
+
+	return arg != NULL;
+}
+
+template<typename T, typename D>
+class SafeDeleter
+{
+private:
+	D* mDeleter;
+public:
+	SafeDeleter(D* deleter) :mDeleter(deleter)
+	{
+		// nothing
+	}
+
+	void operator()(T* arg)
+	{
+		if (IsValidHandleValue(arg))
+		{
+			mDeleter(arg);
+		}
+	}
+};
+
+template<typename T>
+class SafeHandle :public std::shared_ptr<std::remove_pointer_t<T>>
+{
+public:
+	SafeHandle()
+	{
+		// nothing
+	}
+	template<typename D>
+	SafeHandle(T value, D* deleter) : std::shared_ptr<std::remove_pointer_t<T>>(value, SafeDeleter<std::remove_pointer_t<T>, D>(deleter))
+	{
+		// nothing
+	}
+
+	operator T() const
+	{
+		return this->get();
+	}
+
+	operator bool() const
+	{
+		return IsValidHandleValue(this->get());
+	}
+};

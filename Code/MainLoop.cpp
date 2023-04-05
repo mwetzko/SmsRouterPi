@@ -12,15 +12,14 @@
 #include "GsmDecoder.h"
 #include "nlohmann/json.hpp"
 #include <filesystem>
-
-#define BUFFER_LENGTH 48
-
-VOID CALLBACK TimerCallback(HWND, UINT, UINT_PTR, DWORD);
+#include <chrono>
+#include <thread>
 
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
-HANDLE ExitApp;
 
+void LoopUntilExit();
+bool GetCommDevice(const PlatformString&, OverlappedComm*);
 void RemoveCommPort(const PlatformString&);
 void GetRemainingThreads(std::vector<std::shared_ptr<std::thread>>*);
 void ProcessCommPort(const PlatformString&);
@@ -34,13 +33,6 @@ PlatformString smtpfromto;
 
 int MainLoop(int argc, PlatformChar** argv)
 {
-	ExitApp = CreateEventW(NULL, TRUE, FALSE, NULL);
-
-	if (!ExitApp)
-	{
-		return 3;
-	}
-
 	std::map<PlatformString, PlatformString, PlatformCIComparer> parsed;
 	ParseArguments(argc, argv, parsed);
 
@@ -82,18 +74,7 @@ int MainLoop(int argc, PlatformChar** argv)
 		return 2;
 	}
 
-	UINT_PTR timer = SetTimer(NULL, NULL, 10000, TimerCallback);
-
-	MSG msg = { 0 };
-	while (GetMessageW(&msg, NULL, 0, 0) > 0)
-	{
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
-	}
-
-	KillTimer(NULL, timer);
-
-	SetEvent(ExitApp);
+	LoopUntilExit();
 
 	std::vector<std::shared_ptr<std::thread>> threads;
 	GetRemainingThreads(&threads);
@@ -147,21 +128,9 @@ void ProcessCommPort(const PlatformString& port)
 {
 	PLATFORMCOUT << PLATFORMSTR("Processing device at ") << port << std::endl;
 
-	HANDLE com = CreateFileW(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
-
-	if (com != NULL && com != INVALID_HANDLE_VALUE)
+	OverlappedComm ofm;
+	if (GetCommDevice(port, &ofm))
 	{
-		COMMTIMEOUTS timeouts = { 0 };
-		timeouts.ReadIntervalTimeout = -1;
-		timeouts.ReadTotalTimeoutConstant = -2;
-		timeouts.ReadTotalTimeoutMultiplier = -1;
-		timeouts.WriteTotalTimeoutConstant = 0;
-		timeouts.WriteTotalTimeoutMultiplier = 0;
-
-		SetCommTimeouts(com, &timeouts);
-
-		OverlappedComm ofm(port, com);
-
 		ProcessCommLoop(ofm);
 	}
 
@@ -170,61 +139,74 @@ void ProcessCommPort(const PlatformString& port)
 
 void ProcessCommLoop(OverlappedComm& ofm)
 {
-	if (!ofm.ExecuteATCommand(ExitApp, PLATFORMSTR("AT")))
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT")))
 	{
-		ofm.OutputConsole(PLATFORMSTR("AT start command failed!"));
-		return;
+		ofm.ExecuteATCommand(PLATFORMSTR("ATE1"));
+
+		if (!ofm.ExecuteATCommand(PLATFORMSTR("AT")))
+		{
+			ofm.OutputConsole(PLATFORMSTR("AT start command failed!"));
+			return;
+		}
 	}
 
 	PlatformString line;
-	if (!ofm.ExecuteATCommandResult(ExitApp, PLATFORMSTR("AT+CPIN?"), &line))
+	if (!ofm.ExecuteATCommandResult(PLATFORMSTR("AT+CPIN?"), &line) || !line.starts_with(PLATFORMSTR("+CPIN:")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("PIN command failed!"));
 		return;
 	}
 
-	if (line.find(PLATFORMSTR("READY")) < 0)
+	if (!Equal(PlatformString(PLATFORMSTR("READY")), ofm.ParseResult(line)))
 	{
 		ofm.OutputConsole(PLATFORMSTR("SIM card requires a PIN. Remove the PIN and try again!"));
 		return;
 	}
 
-	if (!ofm.ExecuteATCommand(ExitApp, PLATFORMSTR("AT+CMGF=0")))
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CMGF=0")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("Set PDU mode command failed!"));
 		return;
 	}
 
-	PlatformString number;
-	if (!ofm.ExecuteATCommandResult(ExitApp, PLATFORMSTR("AT+CNUM"), &number))
+	if (!ofm.ExecuteATCommandResult(PLATFORMSTR("AT+CNUM"), &line) || !line.starts_with(PLATFORMSTR("+CNUM:")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("Get own number command failed!"));
 		return;
 	}
 
-	PlatformString pnumber;
-	ParseSubscriberNumber(number, pnumber);
+	PlatformString number;
+	ParseSubscriberNumber(ofm.ParseResult(line), number);
 
-	ofm.OutputConsole(PLATFORMSTR("Phone number is "), pnumber);
+	ofm.OutputConsole(PLATFORMSTR("Phone number is "), number);
 
-	if (!ProcessMessages(pnumber, ofm))
+	// check if we have unprocessed messages in memory already
+	if (!ProcessMessages(number, ofm))
 	{
 		return;
 	}
 
-	if (!ofm.ExecuteATCommand(ExitApp, PLATFORMSTR("AT+CNMI=2")))
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CREG=1")))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Enable network registration failed!"));
+		return;
+	}
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CNMI=2")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("CNMI (Notify SMS received) command failed!"));
 		return;
 	}
 
-	while (ofm.ReadLine(ExitApp, &line))
+	while (ofm.ReadLine(&line))
 	{
+		ofm.OutputConsole(line);
+
 		if (line.starts_with(PLATFORMSTR("+CMTI")))
 		{
 			ofm.OutputConsole(PLATFORMSTR("Processing new SMS..."));
 
-			if (!ProcessMessages(pnumber, ofm))
+			if (!ProcessMessages(number, ofm))
 			{
 				return;
 			}
@@ -235,9 +217,9 @@ void ProcessCommLoop(OverlappedComm& ofm)
 bool ProcessMessages(const PlatformString& number, OverlappedComm& ofm)
 {
 	std::vector<PlatformString> lines;
-	if (!ofm.ExecuteATCommandResults(ExitApp, PLATFORMSTR("AT+CMGL=4"), &lines))
+	if (!ofm.ExecuteATCommandResults(PLATFORMSTR("AT+CMGL=4"), &lines))
 	{
-		ofm.OutputConsole(PLATFORMSTR("CMGR (Receive SMS) command failed!"));
+		ofm.OutputConsole(PLATFORMSTR("CMGL (List SMS) command failed!"));
 		return false;
 	}
 
@@ -261,12 +243,12 @@ bool ProcessMessages(const PlatformString& number, OverlappedComm& ofm)
 				while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
 				{
 					ofm.OutputConsole(PLATFORMSTR("Failed to send email. Trying again in 30 minutes."));
-					Sleep(1800000);
+					std::this_thread::sleep_for(std::chrono::minutes(30));
 				}
 			}
 		}
 
-		if (!ofm.ExecuteATCommand(ExitApp, FormatStr(PLATFORMSTR("AT+CMGD=%i"), index).c_str()))
+		if (!ofm.ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
 		{
 			ofm.OutputConsole(PLATFORMSTR("CMGD (Delete SMS) command failed!"));
 			return false;

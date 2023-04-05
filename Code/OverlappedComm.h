@@ -15,178 +15,61 @@ class OverlappedComm
 {
 private:
 	PlatformString mPort;
-	HANDLE mCom;
-	Utf8String mReadLineBuffer;
-	HANDLE mWriteReset;
-	Utf8Char* mReadBuffer;
-	std::uint32_t mReadBufferNum;
-	HANDLE mReadReset;
-
+	std::shared_ptr<PlatformSerial> mSerial;
 public:
-	OverlappedComm(const PlatformString& port, HANDLE com)
+	OverlappedComm()
+	{
+
+	}
+
+	OverlappedComm(const PlatformString& port, const std::shared_ptr<PlatformSerial>& serial)
 	{
 		mPort = port;
-
-		mCom = com;
-
-		mWriteReset = CreateEventW(NULL, TRUE, FALSE, NULL);
-
-		mReadBufferNum = 256;
-		mReadBuffer = new Utf8Char[mReadBufferNum];
-
-		mReadReset = CreateEventW(NULL, TRUE, FALSE, NULL);
+		mSerial = serial;
 	}
 
-	~OverlappedComm()
+	bool WriteLine(const PlatformString& cmd)
 	{
-		CloseHandle(mCom);
-		CloseHandle(mWriteReset);
-		CloseHandle(mReadReset);
-		delete[] mReadBuffer;
+		Utf8String str = PlatformStringToUtf8(cmd);
+
+		return mSerial->WriteLine(str);
 	}
 
-	bool WaitCancelOverlapped(HANDLE cancel, HANDLE overlapped)
+	bool ReadLine(PlatformString* line)
 	{
-		HANDLE waits[] = { cancel, overlapped };
-		DWORD num = WaitForMultipleObjects(sizeof(waits) / sizeof(waits[0]), (const HANDLE*)(&waits), FALSE, INFINITE);
-
-		if (num == MAXDWORD)
+		Utf8String str;
+		if (mSerial->ReadLine(&str))
 		{
-			return false;
+			*line = Utf8ToPlatformString(str);
+			return true;
 		}
-
-		if ((num - WAIT_OBJECT_0) == 0)
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	bool WriteLine(HANDLE cancel, const PlatformString& cmd)
-	{
-		Utf8String str = PlatformStringToUtf8(cmd).append("\r\n");
-
-		DWORD written;
-		OVERLAPPED op = { 0 };
-		op.hEvent = mWriteReset;
-		if (!WriteFile(mCom, str.c_str(), (DWORD)str.size() * sizeof(Utf8Char), &written, &op))
-		{
-			if (GetLastError() != ERROR_IO_PENDING)
-			{
-				return false;
-			}
-
-			if (!WaitCancelOverlapped(cancel, mWriteReset))
-			{
-				return false;
-			}
-
-			if (!GetOverlappedResult(mCom, &op, &written, TRUE))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	bool IsEndLine(Utf8String::iterator& it)
-	{
-		return *it == '\r' || *it == '\n';
-	}
-
-	Utf8String::iterator GetNewLinePos(Utf8String::iterator* end)
-	{
-		for (auto it = mReadLineBuffer.begin(); it != mReadLineBuffer.end(); it++)
-		{
-			if (IsEndLine(it))
-			{
-				*end = it;
-
-				while (++(*end) != mReadLineBuffer.end() && IsEndLine(*end));
-
-				return it;
-			}
-		}
-
-		return mReadLineBuffer.end();
-	}
-
-	bool ReadLine(HANDLE cancel, PlatformString* line)
-	{
-		while (WaitForSingleObject(cancel, 0))
-		{
-			Utf8String::iterator end;
-			Utf8String::iterator it = GetNewLinePos(&end);
-
-			if (it != mReadLineBuffer.end())
-			{
-				auto str = Utf8String(mReadLineBuffer.begin(), it);
-
-				mReadLineBuffer.erase(mReadLineBuffer.begin(), end);
-
-				if (str.begin() == str.end())
-				{
-					continue;
-				}
-
-				*line = Utf8ToPlatformString(str);
-
-				return true;
-			}
-
-			DWORD read;
-			OVERLAPPED op = { 0 };
-			op.hEvent = mReadReset;
-			if (!ReadFile(mCom, mReadBuffer, mReadBufferNum, &read, &op))
-			{
-				if (GetLastError() != ERROR_IO_PENDING)
-				{
-					return false;
-				}
-
-				if (!WaitCancelOverlapped(cancel, mReadReset))
-				{
-					return false;
-				}
-
-				if (!GetOverlappedResult(mCom, &op, &read, TRUE))
-				{
-					return false;
-				}
-			}
-
-			mReadLineBuffer.append(mReadBuffer, read);
-		}
-
 		return false;
 	}
 
-	bool IsOKCommand(PlatformString& line)
+	bool IsOKCommand(const PlatformString& line)
 	{
-		return wcscmp(PLATFORMSTR("OK"), line.c_str()) == 0;
+		return Equal(PlatformString(PLATFORMSTR("OK")), line);
 	}
 
-	bool IsErrorCommand(PlatformString& line)
+	bool IsErrorCommand(const PlatformString& line)
 	{
-		return wcscmp(PLATFORMSTR("ERROR"), line.c_str()) == 0;
+		return Equal(PlatformString(PLATFORMSTR("ERROR")), line);
 	}
 
-	bool IsOKOrErrorCommand(PlatformString& line)
+	bool IsOKOrErrorCommand(const PlatformString& line)
 	{
-		return IsOKCommand(line) || IsErrorCommand(line);
+		return this->IsOKCommand(line) || this->IsErrorCommand(line);
 	}
 
-	bool ExecuteATCommand(HANDLE cancel, const PlatformString& cmd)
+	bool ExecuteATCommand(const PlatformString& cmd)
 	{
-		if (!this->WriteLine(cancel, cmd))
+		if (!this->WriteLine(cmd))
 		{
 			return false;
 		}
 
 		PlatformString line;
-		if (!this->ReadLine(cancel, &line))
+		if (!this->ReadLine(&line))
 		{
 			return false;
 		}
@@ -196,25 +79,25 @@ public:
 			return false;
 		}
 
-		if (!this->ReadLine(cancel, &line))
+		if (!this->ReadLine(&line))
 		{
 			return false;
 		}
 
-		return IsOKCommand(line);
+		return this->IsOKCommand(line);
 	}
 
-	bool ExecuteATCommandResults(HANDLE cancel, const PlatformString& cmd, std::vector<PlatformString>* lines)
+	bool ExecuteATCommandResults(const PlatformString& cmd, std::vector<PlatformString>* lines)
 	{
 		*lines = std::vector<PlatformString>();
 
-		if (!this->WriteLine(cancel, cmd))
+		if (!this->WriteLine(cmd))
 		{
 			return false;
 		}
 
 		PlatformString line;
-		if (!this->ReadLine(cancel, &line))
+		if (!this->ReadLine(&line))
 		{
 			return false;
 		}
@@ -226,12 +109,12 @@ public:
 
 		while (true)
 		{
-			if (!this->ReadLine(cancel, &line))
+			if (!this->ReadLine(&line))
 			{
 				return false;
 			}
 
-			if (IsOKOrErrorCommand(line))
+			if (this->IsOKOrErrorCommand(line))
 			{
 				break;
 			}
@@ -242,10 +125,10 @@ public:
 		return true;
 	}
 
-	bool ExecuteATCommandResult(HANDLE cancel, const PlatformString& cmd, PlatformString* line)
+	bool ExecuteATCommandResult(const PlatformString& cmd, PlatformString* line)
 	{
 		std::vector<PlatformString>lines;
-		if (!ExecuteATCommandResults(cancel, cmd, &lines))
+		if (!this->ExecuteATCommandResults(cmd, &lines))
 		{
 			return false;
 		}
@@ -268,5 +151,29 @@ public:
 		(PLATFORMCOUT << ... << args);
 
 		PLATFORMCOUT << std::endl;
+	}
+
+	PlatformString ParseResult(const PlatformString& result)
+	{
+		for (auto it = result.begin(); it != result.end(); it++)
+		{
+			if (*it == PLATFORMSTR(' '))
+			{
+				break;
+			}
+			else if (*it == PLATFORMSTR(':'))
+			{
+				it++;
+
+				while (it != result.end() && *it == PLATFORMSTR(' '))
+				{
+					it++;
+				}
+
+				return PlatformString(it, result.end());
+			}
+		}
+
+		return result;
 	}
 };

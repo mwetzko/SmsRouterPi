@@ -23,7 +23,6 @@ using Utf8Char = Utf8String::value_type;
 
 int MainLoop(int, PlatformChar**);
 void EnsureCommPort(const PlatformString&);
-void CheckHardwareID(std::uint32_t, std::uint32_t);
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
