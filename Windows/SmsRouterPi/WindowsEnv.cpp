@@ -75,6 +75,8 @@ void CALLBACK TimerCallback(HWND, UINT, UINT_PTR, DWORD)
 
 void LoopUntilExit()
 {
+	TimerCallback(NULL, 0, NULL, 0);
+
 	UINT_PTR timer = SetTimer(NULL, NULL, 10000, TimerCallback);
 
 	MSG msg = { 0 };
