@@ -17,6 +17,8 @@ PlatformChar GsmPage0[] = PLATFORMSTR("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩ
 PlatformChar GsmPage1[] = PLATFORMSTR("??????????\n??\r??????^??????\x1b????????????{}?????\\????????????[~]?|????????????????????????????????????€??????????????????????????");
 // DO NOT CHANGE ============================================================================================================================================
 
+std::wregex RegMatchGsmDate = std::wregex(PLATFORMSTR("^([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9])([0-9])"), std::wregex::icase);
+
 void DecodeGsmSeptet(std::byte code, PlatformChar** page, PlatformString* decoded)
 {
 	if (code == std::byte(0x1B))
@@ -107,33 +109,14 @@ void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 	}
 }
 
-#define ENDIFNECESSARY2 if (it == value.end()) return false
-
-bool ParseDateTimeNumber(PlatformString::iterator& it, PlatformString::iterator end, int* value)
-{
-	ENDIFNECESSARY;
-
-	if (!(bool)iswdigit(*it))
-	{
-		return false;
-	}
-
-	auto itx = it++;
-
-	ENDIFNECESSARY;
-
-	if (!(bool)iswdigit(*it))
-	{
-		return false;
-	}
-
-	*value = ((*itx - PLATFORMSTR('0')) * 10) + (*it - PLATFORMSTR('0'));
-
-	return true;
-}
-
 bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 {
+	std::wsmatch match;
+	if (!std::regex_search(value, match, RegMatchGsmDate))
+	{
+		return false;
+	}
+
 	std::time_t t = std::time(NULL);
 	std::tm tx;
 	if (localtime_s(&tx, &t) != 0)
@@ -143,13 +126,7 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 
 	int currentyear = 1900 + tx.tm_year;
 
-	auto it = value.begin();
-
-	int year;
-	if (!ParseDateTimeNumber(it, value.end(), &year))
-	{
-		return false;
-	}
+	int year = std::stoi(match.str(1));
 
 	year += (currentyear / 100) * 100;
 
@@ -158,82 +135,43 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 		year -= 100;
 	}
 
-	it++;
-
-	int month;
-	if (!ParseDateTimeNumber(it, value.end(), &month))
-	{
-		return false;
-	}
+	int month = std::stoi(match.str(2));
 
 	if (month < 1 || month > 12)
 	{
 		return false;
 	}
 
-	it++;
-
-	int day;
-	if (!ParseDateTimeNumber(it, value.end(), &day))
-	{
-		return false;
-	}
+	int day = std::stoi(match.str(3));
 
 	if (day < 1 || day > 31)
 	{
 		return false;
 	}
 
-	it++;
-
-	int hour;
-	if (!ParseDateTimeNumber(it, value.end(), &hour))
-	{
-		return false;
-	}
+	int hour = std::stoi(match.str(4));
 
 	if (hour < 0 || hour > 23)
 	{
 		return false;
 	}
 
-	it++;
-
-	int minute;
-	if (!ParseDateTimeNumber(it, value.end(), &minute))
-	{
-		return false;
-	}
+	int minute = std::stoi(match.str(5));
 
 	if (minute < 0 || minute > 59)
 	{
 		return false;
 	}
 
-	it++;
-
-	int second;
-	if (!ParseDateTimeNumber(it, value.end(), &second))
-	{
-		return false;
-	}
+	int second = std::stoi(match.str(6));
 
 	if (second < 0 || second > 59)
 	{
 		return false;
 	}
 
-	it++;
-
-	ENDIFNECESSARY2;
-
-	int tz = *it - PLATFORMSTR('0');
-
-	it++;
-
-	ENDIFNECESSARY2;
-
-	int tz1 = *it - PLATFORMSTR('0');
+	int tz = std::stoi(match.str(7));
+	int tz1 = std::stoi(match.str(8));
 
 	tz = (((tz1 & 0x7F) + tz) * 15) / 60;
 
@@ -301,7 +239,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	/* int proto = */ *it++;
+	/* int proto = * */ it++;
 
 	ENDIFNECESSARY3;
 
