@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <mailio/message.hpp>
 #include <mailio/smtp.hpp>
+#include <regex>
 
 Utf8String PlatformStringToUtf8(const PlatformString& str);
 PlatformString Utf8ToPlatformString(const Utf8String& str);
@@ -53,6 +54,8 @@ bool Equal(const T& a, const T& b)
 
 class PlatformSerial
 {
+private:
+	std::regex mRegMatchNL = std::regex("^([^\r\n]*)[\r\n]+", std::regex::icase);
 protected:
 	Utf8String mReadLineBuffer;
 	Utf8Char* mReadBuffer;
@@ -69,30 +72,24 @@ protected:
 		delete[] mReadBuffer;
 	}
 
-	bool IsEndLine(Utf8String::iterator& it)
+	bool CanReadLine(Utf8String* line)
 	{
-		return *it == '\r' || *it == '\n';
-	}
-
-	Utf8String::iterator GetNewLinePos(Utf8String::iterator* end)
-	{
-		for (auto it = mReadLineBuffer.begin(); it != mReadLineBuffer.end(); it++)
+		std::smatch match;
+		if (!std::regex_search(mReadLineBuffer, match, this->mRegMatchNL))
 		{
-			if (this->IsEndLine(it))
-			{
-				*end = it;
-
-				while (++(*end) != mReadLineBuffer.end() && this->IsEndLine(*end));
-
-				return it;
-			}
+			return false;
 		}
 
-		return mReadLineBuffer.end();
+		line->assign(match.str(1));
+
+		mReadLineBuffer = match.suffix();
+
+		return true;
 	}
+
 public:
 	virtual bool WriteLine(const Utf8String& cmd) = 0;
-	virtual bool ReadLine(Utf8String* str) = 0;
+	virtual bool ReadLine(Utf8String* line) = 0;
 };
 
 template<typename T>
