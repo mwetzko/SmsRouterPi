@@ -17,26 +17,26 @@ PlatformChar GsmPage0[] = PLATFORMSTR("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩ
 PlatformChar GsmPage1[] = PLATFORMSTR("??????????\n??\r??????^??????\x1b????????????{}?????\\????????????[~]?|????????????????????????????????????€??????????????????????????");
 // DO NOT CHANGE ============================================================================================================================================
 
-void DecodeGsmSeptet(BYTE code, PlatformChar** page, PlatformString* decoded)
+void DecodeGsmSeptet(std::byte code, PlatformChar** page, PlatformString* decoded)
 {
-	if (code == 0x1B)
+	if (code == std::byte(0x1B))
 	{
 		*page = GsmPage1;
 		return;
 	}
 
-	decoded->push_back((*page)[code]);
+	decoded->push_back((*page)[(int)code]);
 
 	*page = GsmPage0;
 }
 
 #define ENDIFNECESSARY if (it == end) return false
 
-bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iterator end, int chars, int skip, PlatformString* decoded)
+bool DecodeGsmSeptetData(std::vector<std::byte>::iterator it, std::vector<std::byte>::iterator end, int chars, int skip, PlatformString* decoded)
 {
 	*decoded = PlatformString();
 
-	BYTE c = 0;
+	std::byte c = std::byte(0);
 
 	PlatformChar* page = GsmPage0;
 
@@ -46,9 +46,9 @@ bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iter
 
 	while (cchar < skip)
 	{
-		if ((num % 7) == 0 && c > 0)
+		if ((num % 7) == 0 && c > std::byte(0))
 		{
-			c = 0;
+			c = std::byte(0);
 			cchar++;
 			continue;
 		}
@@ -62,17 +62,17 @@ bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iter
 
 	while (cchar < chars)
 	{
-		if ((num % 7) == 0 && c > 0)
+		if ((num % 7) == 0 && c > std::byte(0))
 		{
-			DecodeGsmSeptet(c & 0x7F, &page, decoded);
-			c = 0;
+			DecodeGsmSeptet(c & std::byte(0x7F), &page, decoded);
+			c = std::byte(0);
 			cchar++;
 			continue;
 		}
 
 		ENDIFNECESSARY;
 
-		DecodeGsmSeptet((c | ((*it) << (num % 7))) & 0x7F, &page, decoded);
+		DecodeGsmSeptet((c | ((*it) << (num % 7))) & std::byte(0x7F), &page, decoded);
 
 		c = (*it++) >> (7 - (num++ % 7));
 
@@ -82,9 +82,9 @@ bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iter
 	return true;
 }
 
-void DecodeHexToBin(const PlatformString& data, std::vector<BYTE>* decoded)
+void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 {
-	*decoded = std::vector<BYTE>();
+	*decoded = std::vector<std::byte>();
 
 	PlatformChar buff[] = PLATFORMSTR("\0\0");
 
@@ -95,7 +95,7 @@ void DecodeHexToBin(const PlatformString& data, std::vector<BYTE>* decoded)
 		if (it == data.end())
 		{
 			buff[1] = PLATFORMSTR('\0');
-			decoded->push_back((BYTE)wcstoul(buff, NULL, 16));
+			decoded->push_back(std::byte(wcstoul(buff, NULL, 16)));
 			break;
 		}
 		else
@@ -103,13 +103,13 @@ void DecodeHexToBin(const PlatformString& data, std::vector<BYTE>* decoded)
 			buff[1] = *it;
 		}
 
-		decoded->push_back((BYTE)wcstoul(buff, NULL, 16));
+		decoded->push_back(std::byte(wcstoul(buff, NULL, 16)));
 	}
 }
 
 #define ENDIFNECESSARY2 if (it == value.end()) return false
 
-bool ParseDateTimeNumber(PlatformString::iterator& it, PlatformString::iterator end, PINT value)
+bool ParseDateTimeNumber(PlatformString::iterator& it, PlatformString::iterator end, int* value)
 {
 	ENDIFNECESSARY;
 
@@ -251,14 +251,14 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 
 bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString* datetime, PlatformString* message)
 {
-	std::vector<BYTE> buffer;
+	std::vector<std::byte> buffer;
 	DecodeHexToBin(pdu, &buffer);
 
 	auto it = buffer.begin();
 
 	ENDIFNECESSARY3;
 
-	int num = *it++;
+	int num = (int)(*it++);
 
 	while (num-- > 0)
 	{
@@ -269,15 +269,15 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	auto flags = *it++;
+	int flags = (int)(*it++);
 
 	ENDIFNECESSARY3;
 
-	int senderNum = *it++;
+	int senderNum = (int)(*it++);
 
 	ENDIFNECESSARY3;
 
-	int numberType = *it++;
+	int numberType = (int)(*it++);
 
 	num = senderNum + (senderNum % 2);
 
@@ -287,8 +287,8 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 	{
 		ENDIFNECESSARY3;
 
-		number.push_back(PLATFORMSTR('0') + ((*it) & 0xF));
-		number.push_back(PLATFORMSTR('0') + (((*it) >> 4) & 0xF));
+		number.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & std::byte(0xF)));
+		number.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & std::byte(0xF)));
 	}
 
 	if (number.size() < senderNum)
@@ -301,11 +301,11 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	auto proto = *it++;
+	/* int proto = */ *it++;
 
 	ENDIFNECESSARY3;
 
-	auto scheme = *it++;
+	int scheme = (int)(*it++);
 
 	ENDIFNECESSARY3;
 
@@ -315,8 +315,8 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 	{
 		ENDIFNECESSARY3;
 
-		timestamp.push_back(PLATFORMSTR('0') + ((*it) & 0xF));
-		timestamp.push_back(PLATFORMSTR('0') + (((*it) >> 4) & 0xF));
+		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & std::byte(0xF)));
+		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & std::byte(0xF)));
 	}
 
 	if (!ParseGsmDateTime(timestamp, datetime))
@@ -346,7 +346,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	int len = *it++;
+	int len = (int)(*it++);
 
 	num = 0;
 
@@ -359,7 +359,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 			ENDIFNECESSARY3;
 
 			// LENGTH OF HEADER
-			num = *it++;
+			num = (int)(*it++);
 
 			while (num-- > 0)
 			{
@@ -375,7 +375,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 		{
 			ENDIFNECESSARY3;
 
-			temp.push_back(*it++);
+			temp.push_back((std::string::value_type)(*it++));
 		}
 
 		*message = UCS2ToPlatformString(std::u16string((std::u16string::value_type*)temp.c_str(), (std::u16string::value_type*)temp.c_str() + (temp.length() / sizeof(std::u16string::value_type))));
@@ -392,7 +392,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 		if (flags & 0x40)
 		{
 			// LENGTH OF HEADER
-			num = *it;
+			num = (int)(*it);
 
 			num = MulDiv(num + 1, 8, 7);
 		}
