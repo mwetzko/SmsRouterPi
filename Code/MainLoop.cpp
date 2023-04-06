@@ -15,6 +15,8 @@
 #include <chrono>
 #include <thread>
 
+std::wregex RegMatchSmsIndex = std::wregex(PLATFORMSTR("^([0-9]+),"), std::wregex::icase);
+
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
 
@@ -24,7 +26,8 @@ void RemoveCommPort(const PlatformString&);
 void GetRemainingThreads(std::vector<std::shared_ptr<std::thread>>*);
 void ProcessCommPort(const PlatformString&);
 void ProcessCommLoop(OverlappedComm&);
-bool ProcessMessages(const PlatformString&, OverlappedComm&);
+void ProcessMessage(const PlatformString&, const PlatformString&, const PlatformString&, OverlappedComm&);
+void PrintNetworkState(const PlatformString&, OverlappedComm&);
 
 PlatformString smtpusername;
 PlatformString smtppassword;
@@ -68,11 +71,13 @@ int MainLoop(int argc, PlatformChar** argv)
 	smtpserver = parsed[PLATFORMSTR("serverurl")];
 	smtpfromto = parsed[PLATFORMSTR("fromto")];
 
+#if !_DEBUG
 	if (!SendEmail(PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), smtpusername, smtppassword, smtpserver, smtpfromto))
 	{
 		PLATFORMCERR << PLATFORMSTR("Failed to send test mail!") << std::endl;
 		return 2;
 	}
+#endif
 
 	LoopUntilExit();
 
@@ -137,27 +142,69 @@ void ProcessCommPort(const PlatformString& port)
 	RemoveCommPort(port);
 }
 
-void ProcessCommLoop(OverlappedComm& ofm)
+void OnCommand(OverlappedComm& ofm, const PlatformString& cmd, const PlatformString& value)
 {
-	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT")))
+	if (cmd == PLATFORMSTR("+CPIN"))
 	{
-		ofm.ExecuteATCommand(PLATFORMSTR("ATE1"));
+		ofm.Store[cmd] = value;
+	}
+	else if (cmd == PLATFORMSTR("+CNUM"))
+	{
+		ofm.Store[cmd] = value;
+	}
+	else if (cmd == PLATFORMSTR("+CMGL"))
+	{
+		ofm.OutputConsole(PLATFORMSTR("New SMS!"));
 
-		if (!ofm.ExecuteATCommand(PLATFORMSTR("AT")))
+		PlatformString line;
+		if (!ofm.ReadLine(&line))
 		{
-			ofm.OutputConsole(PLATFORMSTR("AT start command failed!"));
+			return;
+		}
+
+		ProcessMessage(ofm.Store[PLATFORMSTR("+CNUM")], value, line, ofm);
+	}
+	else if (cmd == PLATFORMSTR("+CREG"))
+	{
+		PrintNetworkState(value, ofm);
+	}
+	else if (cmd == PLATFORMSTR("+CMTI"))
+	{
+		if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CMGL=4")))
+		{
+			ofm.OutputConsole(PLATFORMSTR("CMGL (List SMS) command failed!"));
 			return;
 		}
 	}
+	else
+	{
+		ofm.OutputConsole(PLATFORMSTR("Unhandled command: "), cmd, PLATFORMSTR(" with value: "), value);
+	}
+}
 
-	PlatformString line;
-	if (!ofm.ExecuteATCommandResult(PLATFORMSTR("AT+CPIN?"), &line) || !line.starts_with(PLATFORMSTR("+CPIN:")))
+void ProcessCommLoop(OverlappedComm& ofm)
+{
+	ofm.OnCommand = OnCommand;
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT")))
+	{
+		ofm.OutputConsole(PLATFORMSTR("AT start command failed!"));
+		return;
+	}
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("ATE0")))
+	{
+		ofm.OutputConsole(PLATFORMSTR("ATE start command failed!"));
+		return;
+	}
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CPIN?")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("PIN command failed!"));
 		return;
 	}
 
-	if (!Equal(PlatformString(PLATFORMSTR("READY")), ofm.ParseResult(line)))
+	if (ofm.Store[PLATFORMSTR("+CPIN")] != PLATFORMSTR("READY"))
 	{
 		ofm.OutputConsole(PLATFORMSTR("SIM card requires a PIN. Remove the PIN and try again!"));
 		return;
@@ -169,26 +216,42 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
-	if (!ofm.ExecuteATCommandResult(PLATFORMSTR("AT+CNUM"), &line) || !line.starts_with(PLATFORMSTR("+CNUM:")))
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CRC=1")))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Set extended ring mode command failed!"));
+		return;
+	}
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CNUM")))
 	{
 		ofm.OutputConsole(PLATFORMSTR("Get own number command failed!"));
 		return;
 	}
 
+	if (ofm.Store[PLATFORMSTR("+CNUM")] == PLATFORMSTR(""))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Own number is empty!"));
+		return;
+	}
+
 	PlatformString number;
-	ParseSubscriberNumber(ofm.ParseResult(line), number);
+	ParseSubscriberNumber(ofm.Store[PLATFORMSTR("+CNUM")], number);
+
+	ofm.Store[PLATFORMSTR("+CNUM")] = number;
 
 	ofm.OutputConsole(PLATFORMSTR("Phone number is "), number);
 
-	// check if we have unprocessed messages in memory already
-	if (!ProcessMessages(number, ofm))
+	ofm.OutputConsole(PLATFORMSTR("Processing SMS on SIM card..."));
+
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CMGL=4")))
 	{
+		ofm.OutputConsole(PLATFORMSTR("CMGL (List SMS) command failed!"));
 		return;
 	}
 
 	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CREG=1")))
 	{
-		ofm.OutputConsole(PLATFORMSTR("Enable network registration failed!"));
+		ofm.OutputConsole(PLATFORMSTR("Enable network registration status notification failed!"));
 		return;
 	}
 
@@ -198,62 +261,75 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
-	while (ofm.ReadLine(&line))
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CREG?")))
 	{
-		ofm.OutputConsole(line);
+		ofm.OutputConsole(PLATFORMSTR("Get network registration status failed!"));
+		return;
+	}
 
-		if (line.starts_with(PLATFORMSTR("+CMTI")))
-		{
-			ofm.OutputConsole(PLATFORMSTR("Processing new SMS..."));
+	ofm.OutputConsole(PLATFORMSTR("Ready. Waiting for event..."));
 
-			if (!ProcessMessages(number, ofm))
-			{
-				return;
-			}
-		}
+	while (ofm.ExecuteATCommand(PLATFORMSTR("AT")))
+	{
+		ofm.PerformLoop();
 	}
 }
 
-bool ProcessMessages(const PlatformString& number, OverlappedComm& ofm)
+void ProcessMessage(const PlatformString& number, const PlatformString& cmd, const PlatformString& value, OverlappedComm& ofm)
 {
-	std::vector<PlatformString> lines;
-	if (!ofm.ExecuteATCommandResults(PLATFORMSTR("AT+CMGL=4"), &lines))
+	std::wsmatch match;
+	if (!std::regex_search(cmd, match, RegMatchSmsIndex))
 	{
-		ofm.OutputConsole(PLATFORMSTR("CMGL (List SMS) command failed!"));
-		return false;
+		return;
 	}
 
-	auto it = lines.begin();
+	int index = std::stoi(match.str(1));
 
-	while (it != lines.end() && it->starts_with(PLATFORMSTR("+CMGL")))
+	PlatformString from;
+	PlatformString datetime;
+	PlatformString message;
+	if (ParseGsmPDU(value, &from, &datetime, &message))
 	{
-		int index;
-		if (!GetMessageIndexFromListing(*it, &index))
+		while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
 		{
-			return false;
-		}
-
-		if (++it != lines.end())
-		{
-			PlatformString from;
-			PlatformString datetime;
-			PlatformString message;
-			if (ParseGsmPDU(*(it++), &from, &datetime, &message))
-			{
-				while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
-				{
-					ofm.OutputConsole(PLATFORMSTR("Failed to send email. Trying again in 30 minutes."));
-					std::this_thread::sleep_for(std::chrono::minutes(30));
-				}
-			}
-		}
-
-		if (!ofm.ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
-		{
-			ofm.OutputConsole(PLATFORMSTR("CMGD (Delete SMS) command failed!"));
-			return false;
+			ofm.OutputConsole(PLATFORMSTR("Failed to send email. Trying again in 30 minutes."));
+			std::this_thread::sleep_for(std::chrono::minutes(30));
 		}
 	}
 
-	return true;
+	if (!ofm.ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
+	{
+		ofm.OutputConsole(PLATFORMSTR("CMGD (Delete SMS) command failed!"));
+		return;
+	}
+}
+
+void PrintNetworkState(const PlatformString& value, OverlappedComm& ofm)
+{
+	auto state = value;
+
+	auto pos = state.find(PLATFORMSTR(','));
+
+	if (pos != PlatformString::npos)
+	{
+		state = state.substr(pos + 1);
+	}
+
+	if (Equal(PlatformString(PLATFORMSTR("0")), state))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Network state change: Disconnected"));
+	}
+	else if (Equal(PlatformString(PLATFORMSTR("1")), state))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Network state change: Connected"));
+	}
+	else if (Equal(PlatformString(PLATFORMSTR("2")), state))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Network state change: Searching..."));
+	}
+	else
+	{
+		// 3, 4, 5, etc.
+		ofm.OutputConsole(PLATFORMSTR("Network state change: "), state);
+	}
 }
