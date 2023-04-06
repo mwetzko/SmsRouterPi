@@ -16,7 +16,13 @@ class OverlappedComm
 private:
 	PlatformString mPort;
 	std::shared_ptr<PlatformSerial> mSerial;
+	std::wregex mRegATResult = std::wregex(PLATFORMSTR("^(\\+[0-9a-z]+):[\t ]+"), std::wregex::icase);
+
 public:
+
+	std::map<PlatformString, PlatformString> Store;
+	void (*OnCommand)(OverlappedComm&, const PlatformString&, const PlatformString&) = 0;
+
 	OverlappedComm()
 	{
 
@@ -40,7 +46,7 @@ public:
 		Utf8String str;
 		if (mSerial->ReadLine(&str))
 		{
-			*line = Utf8ToPlatformString(str);
+			line->assign(Utf8ToPlatformString(str));
 			return true;
 		}
 		return false;
@@ -68,80 +74,70 @@ public:
 			return false;
 		}
 
-		PlatformString line;
-		if (!this->ReadLine(&line))
-		{
-			return false;
-		}
-
-		if (Equal(cmd, line))
-		{
-			if (!this->ReadLine(&line))
-			{
-				return false;
-			}
-		}
-
-		return this->IsOKCommand(line);
-	}
-
-	bool ExecuteATCommandResults(const PlatformString& cmd, std::vector<PlatformString>* lines)
-	{
-		*lines = std::vector<PlatformString>();
-
-		if (!this->WriteLine(cmd))
-		{
-			return false;
-		}
-
-		PlatformString line;
-		if (!this->ReadLine(&line))
-		{
-			return false;
-		}
-
-		if (Equal(cmd, line))
-		{
-			if (!this->ReadLine(&line))
-			{
-				return false;
-			}
-		}
-
 		while (true)
 		{
-			if (this->IsOKOrErrorCommand(line))
-			{
-				break;
-			}
-
-			lines->push_back(line);
-
+			PlatformString line;
 			if (!this->ReadLine(&line))
 			{
 				return false;
 			}
-		}
 
-		return true;
+			if (line == PLATFORMSTR("") || line == cmd)
+			{
+				continue;
+			}
+
+			std::wsmatch match;
+			if (std::regex_search(line, match, this->mRegATResult))
+			{
+				if (this->OnCommand)
+				{
+					this->OnCommand(*this, match.str(1), match.suffix());
+				}
+			}
+			else if (line == PLATFORMSTR("OK"))
+			{
+				return true;
+			}
+			else if (line == PLATFORMSTR("ERROR"))
+			{
+				return false;
+			}
+			else
+			{
+				this->OutputConsole(PLATFORMSTR("Unhandled return: "), line);
+			}
+		}
 	}
 
-	bool ExecuteATCommandResult(const PlatformString& cmd, PlatformString* line)
+	void PerformLoop()
 	{
-		std::vector<PlatformString>lines;
-		if (!this->ExecuteATCommandResults(cmd, &lines))
+		while (true)
 		{
-			return false;
+			PlatformString line;
+			if (!this->ReadLine(&line))
+			{
+				return;
+			}
+
+			if (line == PLATFORMSTR(""))
+			{
+				continue;
+			}
+
+			std::wsmatch match;
+			if (std::regex_search(line, match, this->mRegATResult))
+			{
+				if (this->OnCommand)
+				{
+					this->OnCommand(*this, match.str(1), match.suffix());
+				}
+			}
+			else
+			{
+				this->OutputConsole(PLATFORMSTR("Unhandled unsolicited event: "), line);
+			}
 		}
-
-		auto it = lines.begin();
-
-		if (it != lines.end())
-		{
-			*line = *it;
-		}
-
-		return true;
 	}
 
 	template<typename... Args>
@@ -152,29 +148,5 @@ public:
 		(PLATFORMCOUT << ... << args);
 
 		PLATFORMCOUT << std::endl;
-	}
-
-	PlatformString ParseResult(const PlatformString& result)
-	{
-		for (auto it = result.begin(); it != result.end(); it++)
-		{
-			if (*it == PLATFORMSTR(' '))
-			{
-				break;
-			}
-			else if (*it == PLATFORMSTR(':'))
-			{
-				it++;
-
-				while (it != result.end() && *it == PLATFORMSTR(' '))
-				{
-					it++;
-				}
-
-				return PlatformString(it, result.end());
-			}
-		}
-
-		return result;
 	}
 };
