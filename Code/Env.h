@@ -10,6 +10,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout
@@ -27,7 +28,9 @@ void EnsureCommPort(const PlatformString&);
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
-#include <SDKDDKVer.h>
+#include <sdkddkver.h>
+#include <boost/asio.hpp>
+#include <Windows.h>
 
 template<typename ...Args>
 PlatformString FormatStr(const PlatformString& format, Args... args)
@@ -45,5 +48,61 @@ PlatformString FormatStr(const PlatformString& format, Args... args)
 
 	return PlatformString(str.c_str());
 }
+
+template<typename T>
+bool IsValidHandleValue(T arg)
+{
+	if constexpr (std::is_same_v<T, HANDLE>)
+	{
+		return arg != NULL && arg != INVALID_HANDLE_VALUE;
+	}
+
+	return arg != NULL;
+}
+
+template<typename T, typename D>
+class SafeDeleter
+{
+private:
+	D* mDeleter;
+public:
+	SafeDeleter(D* deleter) :mDeleter(deleter)
+	{
+		// nothing
+	}
+
+	void operator()(T* arg)
+	{
+		if (IsValidHandleValue(arg))
+		{
+			mDeleter(arg);
+		}
+	}
+};
+
+template<typename T>
+class SafeHandle :public std::shared_ptr<std::remove_pointer_t<T>>
+{
+public:
+	SafeHandle()
+	{
+		// nothing
+	}
+	template<typename D>
+	SafeHandle(T value, D* deleter) : std::shared_ptr<std::remove_pointer_t<T>>(value, SafeDeleter<std::remove_pointer_t<T>, D>(deleter))
+	{
+		// nothing
+	}
+
+	operator T() const
+	{
+		return this->get();
+	}
+
+	operator bool() const
+	{
+		return IsValidHandleValue(this->get());
+	}
+};
 
 #endif

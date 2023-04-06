@@ -43,7 +43,7 @@ struct PlatformCIComparer
 
 void ParseArguments(int argc, PlatformChar* argv[], std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed);
 bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed, const std::vector<PlatformString>& required);
-bool SendEmail(const PlatformString& from, const PlatformString& to, const PlatformString& datetime, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto);
+bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto);
 void ParseSubscriberNumber(const PlatformString& number, PlatformString& pnumber);
 
 template<typename T>
@@ -90,60 +90,4 @@ protected:
 public:
 	virtual bool WriteLine(const Utf8String& cmd) = 0;
 	virtual bool ReadLine(Utf8String* line) = 0;
-};
-
-template<typename T>
-bool IsValidHandleValue(T arg)
-{
-	if constexpr (std::is_same_v<T, HANDLE>)
-	{
-		return arg != NULL && arg != INVALID_HANDLE_VALUE;
-	}
-
-	return arg != NULL;
-}
-
-template<typename T, typename D>
-class SafeDeleter
-{
-private:
-	D* mDeleter;
-public:
-	SafeDeleter(D* deleter) :mDeleter(deleter)
-	{
-		// nothing
-	}
-
-	void operator()(T* arg)
-	{
-		if (IsValidHandleValue(arg))
-		{
-			mDeleter(arg);
-		}
-	}
-};
-
-template<typename T>
-class SafeHandle :public std::shared_ptr<std::remove_pointer_t<T>>
-{
-public:
-	SafeHandle()
-	{
-		// nothing
-	}
-	template<typename D>
-	SafeHandle(T value, D* deleter) : std::shared_ptr<std::remove_pointer_t<T>>(value, SafeDeleter<std::remove_pointer_t<T>, D>(deleter))
-	{
-		// nothing
-	}
-
-	operator T() const
-	{
-		return this->get();
-	}
-
-	operator bool() const
-	{
-		return IsValidHandleValue(this->get());
-	}
 };

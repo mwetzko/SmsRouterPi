@@ -51,7 +51,7 @@ bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCI
 	return true;
 }
 
-bool SendEmail(const PlatformString& from, const PlatformString& to, const PlatformString& datetime, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto)
+bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto)
 {
 	try
 	{
@@ -60,12 +60,9 @@ bool SendEmail(const PlatformString& from, const PlatformString& to, const Platf
 		msg.content_transfer_encoding(mailio::mime::content_transfer_encoding_t::BASE_64);
 		msg.from(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
 		msg.add_recipient(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
-		msg.subject("SMS received");
+		msg.subject(PlatformStringToUtf8(subject));
 		msg.content_type(mailio::mime::media_type_t::TEXT, "PLAIN", "UTF-8");
-		msg.content(PlatformStringToUtf8(PlatformString(PLATFORMSTR("Sender: ")).append(from).append(PLATFORMSTR("\r\n")).
-			append(PLATFORMSTR("Tel received: ")).append(to).append(PLATFORMSTR("\r\n")).
-			append(PLATFORMSTR("Date received: ")).append(datetime).append(PLATFORMSTR("\r\n\r\n")).
-			append(message)));
+		msg.content(PlatformStringToUtf8(message));
 
 		mailio::smtps conn(PlatformStringToUtf8(smtpserver), 587);
 		conn.authenticate(PlatformStringToUtf8(smtpusername), PlatformStringToUtf8(smtppassword), mailio::smtps::auth_method_t::START_TLS);
