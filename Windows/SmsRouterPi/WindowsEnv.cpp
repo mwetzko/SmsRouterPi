@@ -130,19 +130,20 @@ private:
 	bool WaitCancelOverlapped(HANDLE overlapped)
 	{
 		HANDLE waits[] = { mCancel, overlapped };
-		DWORD num = WaitForMultipleObjects(sizeof(waits) / sizeof(waits[0]), (const HANDLE*)(&waits), FALSE, INFINITE);
+		DWORD num = WaitForMultipleObjects(sizeof(waits) / sizeof(waits[0]), (const HANDLE*)(&waits), FALSE, 30000);
 
-		if (num == MAXDWORD)
+		if (num == WAIT_FAILED || num == WAIT_TIMEOUT)
 		{
 			return false;
 		}
-
-		if ((num - WAIT_OBJECT_0) == 0)
+		else if ((num - WAIT_OBJECT_0) == 0)
 		{
 			return false;
 		}
-
-		return true;
+		else
+		{
+			return true;
+		}
 	}
 public:
 	PlatformSerialWindows(const SafeHandle<HANDLE>& com, const SafeHandle<HANDLE>& writeReset, const SafeHandle<HANDLE>& readReset, const SafeHandle<HANDLE>& cancel) :PlatformSerial()
@@ -156,7 +157,7 @@ public:
 	bool WriteLine(const Utf8String& cmd)
 	{
 		auto str = cmd;
-		str.append("\r\n");
+		str.append("\n");
 
 		DWORD written;
 		OVERLAPPED op = { 0 };
@@ -182,26 +183,14 @@ public:
 		return true;
 	}
 
-	bool ReadLine(Utf8String* str)
+	bool ReadLine(Utf8String* line)
 	{
 		while (WaitForSingleObject(mCancel, 0))
 		{
-			Utf8String::iterator end;
-			Utf8String::iterator it = this->GetNewLinePos(&end);
-
-			if (it != mReadLineBuffer.end())
+			Utf8String str;
+			if (CanReadLine(&str))
 			{
-				auto stra = Utf8String(mReadLineBuffer.begin(), it);
-
-				mReadLineBuffer.erase(mReadLineBuffer.begin(), end);
-
-				if (stra.begin() == stra.end())
-				{
-					continue;
-				}
-
-				*str = stra;
-
+				line->assign(str);
 				return true;
 			}
 
@@ -247,6 +236,20 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 		timeouts.WriteTotalTimeoutMultiplier = 0;
 
 		SetCommTimeouts(com, &timeouts);
+
+		DCB dcb = { 0 };
+		dcb.DCBlength = sizeof(DCB);
+		dcb.BaudRate = 9600;
+		dcb.fOutX = 1;
+		dcb.fInX = 1;
+		dcb.XonLim = 16384;
+		dcb.XoffLim = 8192;
+		dcb.ByteSize = 8;
+		dcb.StopBits = 1;
+
+		SetCommState(com, &dcb);
+
+		PurgeComm(com, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
 
 		auto writeReset = SafeHandle(CreateEventW(NULL, TRUE, FALSE, NULL), CloseHandle);
 
