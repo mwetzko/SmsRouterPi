@@ -16,7 +16,7 @@
 #include <thread>
 
 std::wregex RegMatchSmsIndex = std::wregex(PLATFORMSTR("^([0-9]+),"), std::wregex::icase);
-std::wregex RegMatchCallerId = std::wregex(PLATFORMSTR("^([^,]+),"), std::wregex::icase);
+std::wregex RegMatchCallerId = std::wregex(PLATFORMSTR("^['\"]?([^,'\"]+)['\"]?,"), std::wregex::icase);
 
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
