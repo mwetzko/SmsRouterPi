@@ -17,6 +17,7 @@
 
 using PlatformString = std::wstring;
 using PlatformChar = PlatformString::value_type;
+using PlatformStream = std::basic_stringstream<PlatformString::value_type, std::char_traits<PlatformString::value_type>, std::allocator<PlatformString::value_type>>;
 
 using Utf8String = std::string;
 using Utf8Char = Utf8String::value_type;
