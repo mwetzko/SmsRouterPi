@@ -16,6 +16,7 @@
 #include <thread>
 
 std::wregex RegMatchSmsIndex = std::wregex(PLATFORMSTR("^([0-9]+),"), std::wregex::icase);
+std::wregex RegMatchCallerId = std::wregex(PLATFORMSTR("^([^,]+),"), std::wregex::icase);
 
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
@@ -176,6 +177,22 @@ void OnCommand(OverlappedComm& ofm, const PlatformString& cmd, const PlatformStr
 			return;
 		}
 	}
+	else if (cmd == PLATFORMSTR("+CRING"))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Incoming call: "), value);
+	}
+	else if (cmd == PLATFORMSTR("+CLIP"))
+	{
+		std::wsmatch match;
+		if (std::regex_search(value, match, RegMatchCallerId))
+		{
+			ofm.OutputConsole(PLATFORMSTR("Caller ID: "), match.str(1));
+		}
+		else
+		{
+			ofm.OutputConsole(PLATFORMSTR("Caller ID: "), value);
+		}
+	}
 	else
 	{
 		ofm.OutputConsole(PLATFORMSTR("Unhandled command: "), cmd, PLATFORMSTR(" with value: "), value);
@@ -255,9 +272,15 @@ void ProcessCommLoop(OverlappedComm& ofm)
 		return;
 	}
 
+	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CLIP=1")))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Enable caller identification notification failed!"));
+		return;
+	}
+
 	if (!ofm.ExecuteATCommand(PLATFORMSTR("AT+CNMI=2")))
 	{
-		ofm.OutputConsole(PLATFORMSTR("CNMI (Notify SMS received) command failed!"));
+		ofm.OutputConsole(PLATFORMSTR("Enable SMS notification failed!"));
 		return;
 	}
 
@@ -293,7 +316,7 @@ void ProcessMessage(const PlatformString& number, const PlatformString& cmd, con
 		while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
 		{
 			ofm.OutputConsole(PLATFORMSTR("Failed to send email. Trying again in 30 minutes."));
-			std::this_thread::sleep_for(std::chrono::minutes(30));
+			std::this_thread::sleep_for(std::chrono::minutes(1));
 		}
 	}
 
