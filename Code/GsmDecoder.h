@@ -95,7 +95,7 @@ void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 		if (it == data.end())
 		{
 			buff[1] = PLATFORMSTR('\0');
-			decoded->push_back(std::byte(wcstoul(buff, NULL, 16)));
+			decoded->push_back(std::byte(std::stoul(buff, nullptr, 16)));
 			break;
 		}
 		else
@@ -103,7 +103,7 @@ void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 			buff[1] = *it;
 		}
 
-		decoded->push_back(std::byte(wcstoul(buff, NULL, 16)));
+		decoded->push_back(std::byte(std::stoul(buff, nullptr, 16)));
 	}
 }
 
