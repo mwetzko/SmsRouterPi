@@ -117,7 +117,7 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 		return false;
 	}
 
-	std::time_t t = std::time(NULL);
+	std::time_t t = std::time(nullptr);
 	std::tm tx;
 	if (localtime_s(&tx, &t) != 0)
 	{
