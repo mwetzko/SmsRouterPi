@@ -82,7 +82,7 @@ bool DecodeGsmSeptetData(std::vector<BYTE>::iterator it, std::vector<BYTE>::iter
 	return true;
 }
 
-void DecodeHexToBin(PlatformString& data, std::vector<BYTE>* decoded)
+void DecodeHexToBin(const PlatformString& data, std::vector<BYTE>* decoded)
 {
 	*decoded = std::vector<BYTE>();
 
@@ -247,37 +247,9 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 	return true;
 }
 
-bool GetMessageIndexFromListing(PlatformString& value, PINT index)
-{
-	auto it = value.begin();
-
-	ENDIFNECESSARY2;
-
-	while (*it++ != ' ')
-	{
-		ENDIFNECESSARY2;
-	}
-
-	ENDIFNECESSARY2;
-
-	int num = 0;
-
-	while (*it >= PLATFORMSTR('0') && *it <= PLATFORMSTR('9'))
-	{
-		num *= 10;
-		num += ((*it++) - PLATFORMSTR('0'));
-
-		ENDIFNECESSARY2;
-	}
-
-	*index = num;
-
-	return true;
-}
-
 #define ENDIFNECESSARY3 if (it == buffer.end()) return false
 
-bool ParseGsmPDU(PlatformString& pdu, PlatformString* from, PlatformString* datetime, PlatformString* message)
+bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString* datetime, PlatformString* message)
 {
 	std::vector<BYTE> buffer;
 	DecodeHexToBin(pdu, &buffer);
