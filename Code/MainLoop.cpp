@@ -216,15 +216,13 @@ void OnCommand(OverlappedComm& ofm, const PlatformString& cmd, const PlatformStr
 			if (recentCaller != caller || std::chrono::duration_cast<std::chrono::seconds>(now - recentCallerTime).count() > 60)
 			{
 				std::time_t t = std::time(nullptr);
-				std::tm tx;
-
-				localtime_s(&tx, &t);
+				std::tm* tx = localtime(&t);
 
 				auto msg = PlatformString(PLATFORMSTR("Caller: ")).append(caller)
 					.append(PLATFORMSTR("\r\n")).
 					append(PLATFORMSTR("Callee: ")).append(ofm.Store[PLATFORMSTR("+CNUM")])
 					.append(PLATFORMSTR("\r\n")).
-					append(PLATFORMSTR("Date: ")).append((PlatformStream() << std::put_time(&tx, PLATFORMSTR("%FT%T%z"))).str());
+					append(PLATFORMSTR("Date: ")).append((PlatformStream() << std::put_time(tx, PLATFORMSTR("%FT%T%z"))).str());
 
 				AddProcessEmail({ PLATFORMSTR("Call received"), msg });
 			}

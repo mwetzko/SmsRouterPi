@@ -118,13 +118,9 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 	}
 
 	std::time_t t = std::time(nullptr);
-	std::tm tx;
-	if (localtime_s(&tx, &t) != 0)
-	{
-		return false;
-	}
+	std::tm* tx = localtime(&t);
 
-	int currentyear = 1900 + tx.tm_year;
+	int currentyear = 1900 + tx->tm_year;
 
 	int year = std::stoi(match.str(1));
 
@@ -215,7 +211,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	int numberType = (int)(*it++);
+	/* int numberType = * */ it++;
 
 	num = senderNum + (senderNum % 2);
 
@@ -229,7 +225,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 		number.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & std::byte(0xF)));
 	}
 
-	if (number.size() < senderNum)
+	if ((int)number.size() < senderNum)
 	{
 		return false;
 	}
