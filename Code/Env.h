@@ -91,4 +91,74 @@ public:
 
 #else
 
+#include <sys/time.h>
+
+typedef union _LARGE_INTEGER {
+	struct {
+		uint32_t LowPart;
+		int32_t HighPart;
+	};
+	struct {
+		uint32_t LowPart;
+		int32_t HighPart;
+	} u;
+	int64_t QuadPart;
+} LARGE_INTEGER, * PLARGE_INTEGER;
+
+typedef union _ULARGE_INTEGER {
+	struct {
+		uint32_t LowPart;
+		uint32_t HighPart;
+	};
+	struct {
+		uint32_t LowPart;
+		uint32_t HighPart;
+	} u;
+	uint64_t QuadPart;
+} ULARGE_INTEGER, * PULARGE_INTEGER;
+
+#if defined(_M_IX86) && !defined(_M_ARM) && !defined(_M_ARM64) && !defined(MIDL_PASS)&& !defined(RC_INVOKED) && !defined(_M_CEE_PURE)
+#define Int32x32To64(a,b) __emul(a,b)
+#define UInt32x32To64(a,b) __emulu(a,b)
+#else
+#define Int32x32To64(a,b) (((int64_t)(int32_t)(a))*((int64_t)(int32_t)(b)))
+#define UInt32x32To64(a,b) ((uint64_t)(uint32_t)(a)*(uint64_t)(uint32_t)(b))
+#endif
+
+uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER Dividend, uint32_t  Divisor, uint32_t* Remainder)
+{
+	if (Remainder)
+	{
+		*Remainder = (uint32_t)(Dividend.QuadPart % Divisor);
+	}
+
+	return (uint32_t)(Dividend.QuadPart / Divisor);
+}
+
+int MulDiv(int nNumber, int nNumerator, int nDenominator)
+{
+	LARGE_INTEGER Result;
+	int Negative;
+
+	Negative = nNumber ^ nNumerator ^ nDenominator;
+
+	if (nNumber < 0) nNumber *= -1;
+	if (nNumerator < 0) nNumerator *= -1;
+	if (nDenominator < 0) nDenominator *= -1;
+
+	Result.QuadPart = Int32x32To64(nNumber, nNumerator) + (nDenominator / 2);
+
+	if (nDenominator > Result.HighPart)
+	{
+		Result.LowPart = RtlEnlargedUnsignedDivide(*(PULARGE_INTEGER)&Result, (uint32_t)nDenominator, (uint32_t*)&Result.HighPart);
+
+		if ((int)Result.LowPart >= 0)
+		{
+			return (Negative >= 0) ? (int)Result.LowPart : -(int)Result.LowPart;
+		}
+	}
+
+	return -1;
+}
+
 #endif
