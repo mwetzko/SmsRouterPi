@@ -1,5 +1,12 @@
+/.vs
+/vcpkg
 /Windows/.vs
 /Windows/SmsRouterPi/bin
 /Windows/SmsRouterPi/obj
 /Windows/SmsRouterPi/vcpkg
-/Windows/SmsRouterPi/SmsRouterPi.vcxproj.user
+/Windows/SmsRouterPi/WindowsRouterPi.vcxproj.user
+/Linux/.vs
+/Linux/SmsRouterPi/bin
+/Linux/SmsRouterPi/obj
+/Linux/SmsRouterPi/LinuxRouterPi.vcxproj.user
+
