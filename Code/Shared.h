@@ -27,13 +27,13 @@ PlatformString FormatStr(const PlatformString& format, Args... args)
 {
 	PlatformString str(format.size() + 64, '0');
 
-	int ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
+	int ans = std::swprintf((PlatformChar*)str.c_str(), str.size(), format.c_str(), args...);
 
 	while (ans < 0)
 	{
 		str.resize(str.size() + 1024);
 
-		ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
+		ans = std::swprintf((PlatformChar*)str.c_str(), str.size(), format.c_str(), args...);
 	}
 
 	return PlatformString(str.c_str());
