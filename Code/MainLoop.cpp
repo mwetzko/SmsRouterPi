@@ -54,14 +54,14 @@ std::mutex EmailsLock;
 std::thread EmailThread;
 std::mutex EmailThreadLock;
 
-int MainLoop(int argc, PlatformChar** argv)
+int MainLoop(const std::vector<PlatformString>& args)
 {
 	std::map<PlatformString, PlatformString, PlatformCIComparer> parsed;
-	ParseArguments(argc, argv, parsed);
+	ParseArguments(args, parsed);
 
 	if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
 	{
-		auto path = std::filesystem::path(argv[0]);
+		auto path = std::filesystem::path(args[0]);
 
 		path = path.parent_path();
 
@@ -81,7 +81,7 @@ int MainLoop(int argc, PlatformChar** argv)
 
 		if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
 		{
-			PLATFORMCERR << PLATFORMSTR("Usage: ") << argv[0] << PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>") << std::endl;
+			PLATFORMCERR << PLATFORMSTR("Usage: ") << args[0] << PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>") << std::endl;
 			return 1;
 		}
 	}

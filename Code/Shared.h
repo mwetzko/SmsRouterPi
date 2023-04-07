@@ -9,6 +9,8 @@
 
 #pragma once
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "Env.h"
 #include <iostream>
 #include <vector>
@@ -20,28 +22,62 @@
 #include <mailio/smtp.hpp>
 #include <regex>
 
-Utf8String PlatformStringToUtf8(const PlatformString& str);
-PlatformString Utf8ToPlatformString(const Utf8String& str);
-PlatformString UCS2ToPlatformString(const std::u16string& str);
+template<typename ...Args>
+PlatformString FormatStr(const PlatformString& format, Args... args)
+{
+	PlatformString str(format.size() + 64, '0');
 
-template<typename... Args>
-PlatformString FormatStr(const PlatformString& format, Args... args);
+	int ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
+
+	while (ans < 0)
+	{
+		str.resize(str.size() + 1024);
+
+		ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
+	}
+
+	return PlatformString(str.c_str());
+}
+
+template<typename From, typename To>
+To ConvertMultiByte(const From& str, auto cvt)
+{
+	auto astr = str.c_str();
+	std::mbstate_t state = std::mbstate_t();
+	std::size_t len = 1 + cvt(nullptr, &astr, 0, &state);
+	std::vector<typename To::value_type> mbstr(len);
+	cvt(mbstr.data(), &astr, mbstr.size(), &state);
+	return To(mbstr.begin(), mbstr.end());
+}
+
+Utf8String PlatformStringToUtf8(const PlatformString&);
+PlatformString Utf8ToPlatformString(const Utf8String&);
+PlatformString UCS2ToPlatformString(const std::u16string&);
 
 struct PlatformCIComparer
 {
 	bool operator()(const PlatformString& a, const PlatformString& b) const
 	{
-		auto ax = PlatformString(a);
-		auto bx = PlatformString(b);
+		for (auto ait = a.begin(), bit = b.begin(); ait != a.end() && bit != b.end(); ait++, bit++)
+		{
+			auto aa = std::towlower(*ait);
+			auto bb = std::towlower(*bit);
 
-		std::transform(ax.begin(), ax.end(), ax.begin(), ::tolower);
-		std::transform(bx.begin(), bx.end(), bx.begin(), ::tolower);
+			if (aa < bb)
+			{
+				return true;
+			}
+			else if (bb < aa)
+			{
+				return false;
+			}
+		}
 
-		return a < b;
+		return false;
 	}
 };
 
-void ParseArguments(int argc, PlatformChar* argv[], std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed);
+void ParseArguments(const std::vector<PlatformString>& args, std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed);
 bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed, const std::vector<PlatformString>& required);
 bool WaitOrExitApp();
 bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto);

@@ -9,14 +9,22 @@
 
 #include "Shared.h"
 
-void ParseArguments(int argc, PlatformChar* argv[], std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed)
+Utf8String PlatformStringToUtf8(const PlatformString& str)
+{
+	return ConvertMultiByte<PlatformString, Utf8String>(str, std::wcsrtombs);
+}
+
+PlatformString Utf8ToPlatformString(const Utf8String& str)
+{
+	return ConvertMultiByte<Utf8String, PlatformString>(str, std::mbsrtowcs);
+}
+
+void ParseArguments(const std::vector<PlatformString>& args, std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed)
 {
 	auto it = parsed.end();
 
-	for (int i = 1; i < argc; i++)
+	for (auto item : args)
 	{
-		auto item = PlatformString(argv[i]);
-
 		if (item.size() > 0)
 		{
 			if (item[0] == PLATFORMSTR('-') || item[0] == PLATFORMSTR('/'))

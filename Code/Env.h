@@ -11,6 +11,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout
@@ -23,7 +24,7 @@ using PlatformStream = std::basic_stringstream<PlatformChar, std::char_traits<Pl
 using Utf8String = std::string;
 using Utf8Char = Utf8String::value_type;
 
-int MainLoop(int, PlatformChar**);
+int MainLoop(const std::vector<PlatformString>&);
 void EnsureCommPort(const PlatformString&);
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
@@ -31,23 +32,6 @@ void EnsureCommPort(const PlatformString&);
 #include <sdkddkver.h>
 #include <boost/asio.hpp>
 #include <Windows.h>
-
-template<typename ...Args>
-PlatformString FormatStr(const PlatformString& format, Args... args)
-{
-	PlatformString str(format.size() + 64, '0');
-
-	int ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
-
-	while (ans < 0)
-	{
-		str.resize(str.size() + 1024);
-
-		ans = _snwprintf_s((PlatformChar*)str.c_str(), str.size(), str.size(), format.c_str(), args...);
-	}
-
-	return PlatformString(str.c_str());
-}
 
 template<typename T>
 bool IsValidHandleValue(T arg)

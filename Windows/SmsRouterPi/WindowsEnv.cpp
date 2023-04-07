@@ -27,10 +27,17 @@ int wmain(int argc, wchar_t* argv[])
 		return 3;
 	}
 
-	return MainLoop(argc, argv);
+	std::vector<PlatformString> vec;
+
+	for (int i = 0; i < argc; i++)
+	{
+		vec.push_back(argv[i]);
+	}
+
+	return MainLoop(vec);
 }
 
-void CheckHardwareID(std::uint32_t vid, std::uint32_t pid)
+void CheckHardwareID(DWORD vid, DWORD pid)
 {
 	std::wstring format = FormatStr(L"USB\\VID_%X&PID_%X", vid, pid);
 
@@ -89,28 +96,6 @@ void LoopUntilExit()
 	KillTimer(NULL, timer);
 
 	SetEvent(ExitApp);
-}
-
-Utf8String PlatformStringToUtf8(const PlatformString& str)
-{
-	auto needed = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), NULL, 0, NULL, NULL);
-
-	Utf8String cvt(needed, 0);
-
-	WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), (LPSTR)cvt.c_str(), (int)cvt.size(), NULL, NULL);
-
-	return cvt;
-}
-
-PlatformString Utf8ToPlatformString(const Utf8String& str)
-{
-	auto needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), NULL, 0);
-
-	PlatformString cvt(needed, 0);
-
-	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), (PlatformChar*)cvt.c_str(), (int)cvt.size());
-
-	return cvt;
 }
 
 PlatformString UCS2ToPlatformString(const std::u16string& str)
