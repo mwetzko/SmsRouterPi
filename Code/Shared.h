@@ -47,7 +47,7 @@ To ConvertMultiByte(const From& str, auto cvt)
 	std::size_t len = 1 + cvt(nullptr, &astr, 0, &state);
 	std::vector<typename To::value_type> mbstr(len);
 	cvt(mbstr.data(), &astr, mbstr.size(), &state);
-	return To(mbstr.begin(), mbstr.end());
+	return To(mbstr.data());
 }
 
 Utf8String PlatformStringToUtf8(const PlatformString&);
