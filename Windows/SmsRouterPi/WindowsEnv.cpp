@@ -185,7 +185,7 @@ public:
 
 	bool ReadLine(Utf8String* line)
 	{
-		while (WaitForSingleObject(mCancel, 0))
+		while (WaitForSingleObject(mCancel, 0) == WAIT_TIMEOUT)
 		{
 			Utf8String str;
 			if (CanReadLine(&str))
@@ -267,4 +267,9 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 	}
 
 	return false;
+}
+
+bool WaitOrExitApp()
+{
+	return WaitForSingleObject(ExitApp, 30000) == WAIT_OBJECT_0;
 }

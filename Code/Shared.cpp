@@ -75,36 +75,3 @@ bool SendEmail(const PlatformString& subject, const PlatformString& message, con
 		return false;
 	}
 }
-
-void ParseSubscriberNumber(const PlatformString& number, PlatformString& pnumber)
-{
-	bool st = false;
-	bool qt = false;
-
-	for (auto it : number)
-	{
-		if (it == PLATFORMSTR(','))
-		{
-			if (qt)
-			{
-				pnumber.push_back(it);
-			}
-			else if (st)
-			{
-				return;
-			}
-			else
-			{
-				st = true;
-			}
-		}
-		else if (it == PLATFORMSTR('"'))
-		{
-			qt = !qt;
-		}
-		else if (st)
-		{
-			pnumber.push_back(it);
-		}
-	}
-}

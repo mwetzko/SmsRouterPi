@@ -35,6 +35,25 @@ PlatformString smtppassword;
 PlatformString smtpserver;
 PlatformString smtpfromto;
 
+PlatformString recentCaller = PLATFORMSTR("");
+auto recentCallerTime = std::chrono::steady_clock::now();
+
+struct EmailData
+{
+	PlatformString Subject;
+	PlatformString Message;
+};
+
+void DoEmailProcessingIfNecessary();
+void AddProcessEmail(const EmailData&);
+void ProcessSendEmail();
+
+std::vector<EmailData> Emails;
+std::mutex EmailsLock;
+
+std::thread EmailThread;
+std::mutex EmailThreadLock;
+
 int MainLoop(int argc, PlatformChar** argv)
 {
 	std::map<PlatformString, PlatformString, PlatformCIComparer> parsed;
@@ -73,7 +92,7 @@ int MainLoop(int argc, PlatformChar** argv)
 	smtpfromto = parsed[PLATFORMSTR("fromto")];
 
 #if !_DEBUG
-	if (!SendEmail(PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), smtpusername, smtppassword, smtpserver, smtpfromto))
+	if (!SendEmail(PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), smtpusername, smtppassword, smtpserver, smtpfromto))
 	{
 		PLATFORMCERR << PLATFORMSTR("Failed to send test mail!") << std::endl;
 		return 2;
@@ -88,6 +107,11 @@ int MainLoop(int argc, PlatformChar** argv)
 	for (auto it : threads)
 	{
 		it->join();
+	}
+
+	if (EmailThread.joinable())
+	{
+		EmailThread.join();
 	}
 
 	return 0;
@@ -186,10 +210,33 @@ void OnCommand(OverlappedComm& ofm, const PlatformString& cmd, const PlatformStr
 		std::wsmatch match;
 		if (std::regex_search(value, match, RegMatchCallerId))
 		{
-			ofm.OutputConsole(PLATFORMSTR("Caller ID: "), match.str(1));
+			auto caller = match.str(1);
+			auto now = std::chrono::steady_clock::now();
+
+			if (recentCaller != caller || std::chrono::duration_cast<std::chrono::seconds>(now - recentCallerTime).count() > 60)
+			{
+				std::time_t t = std::time(nullptr);
+				std::tm tx;
+
+				localtime_s(&tx, &t);
+
+				auto msg = PlatformString(PLATFORMSTR("Caller: ")).append(caller)
+					.append(PLATFORMSTR("\r\n")).
+					append(PLATFORMSTR("Callee: ")).append(ofm.Store[PLATFORMSTR("+CNUM")])
+					.append(PLATFORMSTR("\r\n")).
+					append(PLATFORMSTR("Date: ")).append((PlatformStream() << std::put_time(&tx, PLATFORMSTR("%FT%T%z"))).str());
+
+				AddProcessEmail({ PLATFORMSTR("Call received"), msg });
+			}
+
+			recentCaller = caller;
+			recentCallerTime = now;
+
+			ofm.OutputConsole(PLATFORMSTR("Caller ID: "), caller);
 		}
 		else
 		{
+			// must never happen
 			ofm.OutputConsole(PLATFORMSTR("Caller ID: "), value);
 		}
 	}
@@ -247,12 +294,18 @@ void ProcessCommLoop(OverlappedComm& ofm)
 
 	if (ofm.Store[PLATFORMSTR("+CNUM")] == PLATFORMSTR(""))
 	{
-		ofm.OutputConsole(PLATFORMSTR("Own number is empty!"));
+		ofm.OutputConsole(PLATFORMSTR("Subscriber number is empty!"));
 		return;
 	}
 
-	PlatformString number;
-	ParseSubscriberNumber(ofm.Store[PLATFORMSTR("+CNUM")], number);
+	std::wsmatch match;
+	if (!std::regex_search(ofm.Store[PLATFORMSTR("+CNUM")], match, std::wregex(PLATFORMSTR("^(?:(['\"]).*?\\1)?,(['\"])(.*?)\\2,"), std::wregex::icase)))
+	{
+		ofm.OutputConsole(PLATFORMSTR("Cannot parse subscriber number!"));
+		return;
+	}
+
+	PlatformString number = match.str(3);
 
 	ofm.Store[PLATFORMSTR("+CNUM")] = number;
 
@@ -294,6 +347,8 @@ void ProcessCommLoop(OverlappedComm& ofm)
 
 	while (ofm.ExecuteATCommand(PLATFORMSTR("AT")))
 	{
+		DoEmailProcessingIfNecessary();
+
 		ofm.PerformLoop();
 	}
 }
@@ -313,11 +368,15 @@ void ProcessMessage(const PlatformString& number, const PlatformString& cmd, con
 	PlatformString message;
 	if (ParseGsmPDU(value, &from, &datetime, &message))
 	{
-		while (!SendEmail(from, number, datetime, message, smtpusername, smtppassword, smtpserver, smtpfromto))
-		{
-			ofm.OutputConsole(PLATFORMSTR("Failed to send email. Trying again in 30 minutes."));
-			std::this_thread::sleep_for(std::chrono::minutes(1));
-		}
+		auto msg = PlatformString(PLATFORMSTR("Sender: ")).append(from)
+			.append(PLATFORMSTR("\r\n")).
+			append(PLATFORMSTR("Receiver: ")).append(number)
+			.append(PLATFORMSTR("\r\n")).
+			append(PLATFORMSTR("Date: ")).append(datetime)
+			.append(PLATFORMSTR("\r\n\r\n")).
+			append(message);
+
+		AddProcessEmail({ PLATFORMSTR("SMS received"), msg });
 	}
 
 	if (!ofm.ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
@@ -355,4 +414,77 @@ void PrintNetworkState(const PlatformString& value, OverlappedComm& ofm)
 		// 3, 4, 5, etc.
 		ofm.OutputConsole(PLATFORMSTR("Network state change: "), state);
 	}
+}
+
+void FireEmailThread()
+{
+	const std::lock_guard<std::mutex> lock(EmailThreadLock);
+
+	if (!EmailThread.joinable())
+	{
+		EmailThread = std::thread(ProcessSendEmail);
+	}
+}
+
+void DoEmailProcessingIfNecessary()
+{
+	const std::lock_guard<std::mutex> lock(EmailsLock);
+
+	if (Emails.size() > 0)
+	{
+		FireEmailThread();
+	}
+}
+
+void AddProcessEmail(const EmailData& data)
+{
+	const std::lock_guard<std::mutex> lock(EmailsLock);
+
+	Emails.push_back(data);
+
+	FireEmailThread();
+}
+
+bool GetNextEmailData(EmailData* data)
+{
+	const std::lock_guard<std::mutex> lock(EmailsLock);
+
+	auto it = Emails.begin();
+
+	if (it == Emails.end())
+	{
+		return false;
+	}
+
+	*data = *it;
+
+	Emails.erase(it);
+
+	return true;
+}
+
+void ProcessSendEmail()
+{
+	try
+	{
+		EmailData data;
+		while (GetNextEmailData(&data))
+		{
+			if (!SendEmail(data.Subject, data.Message, smtpusername, smtppassword, smtpserver, smtpfromto))
+			{
+				if (WaitOrExitApp())
+				{
+					break;
+				}
+			}
+		}
+	}
+	catch (const std::exception&)
+	{
+		// nothing
+	}
+
+	const std::lock_guard<std::mutex> lock(EmailThreadLock);
+
+	EmailThread.detach();
 }

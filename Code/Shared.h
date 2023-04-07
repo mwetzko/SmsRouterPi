@@ -43,8 +43,8 @@ struct PlatformCIComparer
 
 void ParseArguments(int argc, PlatformChar* argv[], std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed);
 bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed, const std::vector<PlatformString>& required);
+bool WaitOrExitApp();
 bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto);
-void ParseSubscriberNumber(const PlatformString& number, PlatformString& pnumber);
 
 template<typename T>
 bool Equal(const T& a, const T& b)
