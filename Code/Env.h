@@ -93,8 +93,6 @@ public:
 
 #else
 
-
-
 typedef union _LARGE_INTEGER {
 	struct {
 		uint32_t LowPart;

@@ -20,6 +20,7 @@
 #include <string>
 #include <algorithm>
 #include <regex>
+#include <iomanip>
 #include <curl/curl.h>
 
 template<typename ...Args>
