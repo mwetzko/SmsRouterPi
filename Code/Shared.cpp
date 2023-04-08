@@ -93,11 +93,7 @@ bool SendEmail(const PlatformString& subject, const PlatformString& message, con
 	{
 		return false;
 	}
-
-	res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-	CANCELEMAILIFNECESSARY;
-
+		
 	res = curl_easy_setopt(curl, CURLOPT_USERNAME, PlatformStringToUtf8(smtpusername).c_str());
 
 	CANCELEMAILIFNECESSARY;

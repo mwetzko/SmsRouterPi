@@ -13,6 +13,8 @@
 
 int main(int argc, char** argv)
 {
+	std::setlocale(LC_ALL, "iv.utf8");
+
 	std::vector<PlatformString> vec;
 
 	for (int i = 0; i < argc; i++)
@@ -74,7 +76,7 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 bool WaitOrExitApp()
 {
-
+	return true;
 }
 
 uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER Dividend, uint32_t Divisor, uint32_t* Remainder)

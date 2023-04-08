@@ -44,10 +44,20 @@ To ConvertMultiByte(const From& str, auto cvt)
 {
 	auto astr = str.c_str();
 	std::mbstate_t state = std::mbstate_t();
-	std::size_t len = 1 + cvt(nullptr, &astr, 0, &state);
-	std::vector<typename To::value_type> mbstr(len);
-	cvt(mbstr.data(), &astr, mbstr.size(), &state);
-	return To(mbstr.data());
+	std::size_t len = cvt(nullptr, &astr, 0, &state);
+
+	if (len != static_cast<std::size_t>(-1))
+	{
+		std::vector<typename To::value_type> mbstr(len);
+		len = cvt(mbstr.data(), &astr, mbstr.size(), &state);
+
+		if (len != static_cast<std::size_t>(-1))
+		{
+			return To(mbstr.data(), len);
+		}
+	}
+
+	return To();
 }
 
 Utf8String PlatformStringToUtf8(const PlatformString&);

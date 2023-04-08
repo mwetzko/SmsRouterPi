@@ -20,6 +20,8 @@ SafeHandle<HANDLE> ExitApp;
 
 int wmain(int argc, wchar_t* argv[])
 {
+	std::setlocale(LC_ALL, "iv.utf8");
+
 	ExitApp = SafeHandle(CreateEventW(NULL, TRUE, FALSE, NULL), CloseHandle);
 
 	if (!ExitApp)
