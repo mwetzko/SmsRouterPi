@@ -57,7 +57,7 @@ bool DecodeGsmSeptetData(std::vector<byte>::iterator it, std::vector<byte>::iter
 
 		ENDIFNECESSARY;
 
-		c = (*it++) >> (7 - (num++ % 7));
+		c = (byte)((*it++) >> (7 - (num++ % 7)));
 
 		cchar++;
 	}
@@ -76,7 +76,7 @@ bool DecodeGsmSeptetData(std::vector<byte>::iterator it, std::vector<byte>::iter
 
 		DecodeGsmSeptet((c | ((*it) << (num % 7))) & 0x7F, &page, decoded);
 
-		c = (*it++) >> (7 - (num++ % 7));
+		c = (byte)((*it++) >> (7 - (num++ % 7)));
 
 		cchar++;
 	}
