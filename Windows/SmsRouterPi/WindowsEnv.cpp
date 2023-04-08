@@ -7,9 +7,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma comment (lib, "SetupAPI.lib")
-#pragma comment (lib, "Crypt32.lib")
-
 #include "Shared.h"
 #include "OverlappedComm.h"
 #include <Windows.h>
