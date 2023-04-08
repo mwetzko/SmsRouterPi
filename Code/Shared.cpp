@@ -102,7 +102,7 @@ bool SendEmail(const PlatformString& subject, const PlatformString& message, con
 
 	CANCELEMAILIFNECESSARY;
 
-	res = curl_easy_setopt(curl, CURLOPT_URL, PlatformStringToUtf8(PlatformString(PLATFORMSTR("smtp://")).append(smtpserver).append(PLATFORMSTR(":587"))).c_str());
+	res = curl_easy_setopt(curl, CURLOPT_URL, PlatformStringToUtf8(PlatformString(PLATFORMSTR("smtp://")).append(smtpserver).append(PLATFORMSTR(":587/SmsRouterPi"))).c_str());
 
 	CANCELEMAILIFNECESSARY;
 
