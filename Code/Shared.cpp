@@ -59,27 +59,131 @@ bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCI
 	return true;
 }
 
+struct upload_status {
+	Utf8String* data;
+	size_t bytes_read;
+};
+
+#define CANCELEMAILIFNECESSARY if (res != CURLE_OK) goto CLEANUP
+
 bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto)
 {
-	try
-	{
-		mailio::message msg;
-		msg.header_codec(mailio::message::header_codec_t::BASE64);
-		msg.content_transfer_encoding(mailio::mime::content_transfer_encoding_t::BASE_64);
-		msg.from(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
-		msg.add_recipient(mailio::mail_address(PlatformStringToUtf8(smtpfromto), PlatformStringToUtf8(smtpfromto)));
-		msg.subject(PlatformStringToUtf8(subject));
-		msg.content_type(mailio::mime::media_type_t::TEXT, "PLAIN", "UTF-8");
-		msg.content(PlatformStringToUtf8(message));
+	CURL* curl;
+	CURLcode res = CURLE_FAILED_INIT;
+	curl_slist* recipients = NULL;
+	upload_status upload_ctx = { 0 };
+	PlatformStream strm;
+	std::time_t t = std::time(nullptr);
+	std::tm* tx = localtime(&t);
 
-		mailio::smtps conn(PlatformStringToUtf8(smtpserver), 587);
-		conn.authenticate(PlatformStringToUtf8(smtpusername), PlatformStringToUtf8(smtppassword), mailio::smtps::auth_method_t::START_TLS);
-		conn.submit(msg);
+	strm << PLATFORMSTR("Date: ") << std::put_time(tx, L"%a, %d %b %Y %T %z") << PLATFORMSTR("\r\n")
+		<< PLATFORMSTR("To: ") << smtpfromto << PLATFORMSTR("\r\n")
+		<< PLATFORMSTR("From: ") << smtpfromto << PLATFORMSTR("\r\n")
+		<< PLATFORMSTR("Subject: ") << subject << PLATFORMSTR("\r\n")
+		<< PLATFORMSTR("Content-Type: text/plain; charset=utf-8\r\n")
+		<< PLATFORMSTR("\r\n") << message << PLATFORMSTR("\r\n");
 
-		return true;
-	}
-	catch (const std::exception&)
+	Utf8String msg(PlatformStringToUtf8(strm.str()));
+
+	upload_ctx.data = &msg;
+
+	curl = curl_easy_init();
+
+	if (!curl)
 	{
 		return false;
 	}
+
+	res = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_USERNAME, PlatformStringToUtf8(smtpusername).c_str());
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_PASSWORD, PlatformStringToUtf8(smtppassword).c_str());
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_URL, PlatformStringToUtf8(PlatformString(PLATFORMSTR("smtp://")).append(smtpserver).append(PLATFORMSTR(":587"))).c_str());
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_MAIL_FROM, PlatformStringToUtf8(smtpfromto).c_str());
+
+	CANCELEMAILIFNECESSARY;
+
+	recipients = curl_slist_append(recipients, PlatformStringToUtf8(smtpfromto).c_str());
+
+	res = curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_READFUNCTION, +[](char* ptr, size_t size, size_t nmemb, void* userp)->size_t
+		{ {
+				struct upload_status* upload_ctx = (struct upload_status*)userp;
+
+				size_t room = size * nmemb;
+
+				if ((size == 0) || (nmemb == 0) || ((size * nmemb) < 1))
+				{
+					return 0;
+				}
+
+				auto data = upload_ctx->data->c_str() + upload_ctx->bytes_read;
+
+				if (data)
+				{
+					size_t len = upload_ctx->data->size() - upload_ctx->bytes_read;
+
+					if (len > 0)
+					{
+						if (room < len)
+						{
+							len = room;
+						}
+
+						std::memcpy(ptr, data, len);
+
+						upload_ctx->bytes_read += len;
+
+						return len;
+					}
+				}
+
+				return 0;
+			}});
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_READDATA, &upload_ctx);
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+
+	CANCELEMAILIFNECESSARY;
+
+	res = curl_easy_perform(curl);
+
+CLEANUP:;
+
+	if (recipients)
+	{
+		curl_slist_free_all(recipients);
+	}
+
+	curl_easy_cleanup(curl);
+
+	if (res != CURLE_OK)
+	{
+		std::cout << curl_easy_strerror(res) << std::endl;
+	}
+
+	return res == CURLE_OK;
 }

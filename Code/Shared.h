@@ -12,15 +12,15 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "Env.h"
+#include <fstream>
 #include <iostream>
 #include <vector>
 #include <mutex>
 #include <map>
 #include <string>
 #include <algorithm>
-#include <mailio/message.hpp>
-#include <mailio/smtp.hpp>
 #include <regex>
+#include <curl/curl.h>
 
 template<typename ...Args>
 PlatformString FormatStr(const PlatformString& format, Args... args)
@@ -60,8 +60,8 @@ struct PlatformCIComparer
 	{
 		for (auto ait = a.begin(), bit = b.begin(); ait != a.end() && bit != b.end(); ait++, bit++)
 		{
-			auto aa = std::towlower(*ait);
-			auto bb = std::towlower(*bit);
+			auto aa = ::towlower(*ait);
+			auto bb = ::towlower(*bit);
 
 			if (aa < bb)
 			{

@@ -15,7 +15,7 @@ try {
 	
 		$arch = $_
 	
-		@( @("nlohmann-json:$($arch)-windows-static", "nlohmann\json.hpp") , @("mailio:$($arch)-windows-static", "mailio\message.hpp") ) | ForEach-Object {
+		@( @("nlohmann-json:$($arch)-windows-static", "nlohmann\json.hpp") , @("curl:$($arch)-windows-static", "curl\curl.h") ) | ForEach-Object {
 	
 			$pack = $_[0]
 			$header = $_[1]
