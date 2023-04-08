@@ -24,6 +24,8 @@ using PlatformStream = std::basic_stringstream<PlatformChar, std::char_traits<Pl
 using Utf8String = std::string;
 using Utf8Char = Utf8String::value_type;
 
+using byte = unsigned char;
+
 int MainLoop(const std::vector<PlatformString>&);
 void EnsureCommPort(const PlatformString&);
 
@@ -91,7 +93,7 @@ public:
 
 #else
 
-#include <sys/time.h>
+
 
 typedef union _LARGE_INTEGER {
 	struct {
@@ -125,40 +127,7 @@ typedef union _ULARGE_INTEGER {
 #define UInt32x32To64(a,b) ((uint64_t)(uint32_t)(a)*(uint64_t)(uint32_t)(b))
 #endif
 
-uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER Dividend, uint32_t  Divisor, uint32_t* Remainder)
-{
-	if (Remainder)
-	{
-		*Remainder = (uint32_t)(Dividend.QuadPart % Divisor);
-	}
-
-	return (uint32_t)(Dividend.QuadPart / Divisor);
-}
-
-int MulDiv(int nNumber, int nNumerator, int nDenominator)
-{
-	LARGE_INTEGER Result;
-	int Negative;
-
-	Negative = nNumber ^ nNumerator ^ nDenominator;
-
-	if (nNumber < 0) nNumber *= -1;
-	if (nNumerator < 0) nNumerator *= -1;
-	if (nDenominator < 0) nDenominator *= -1;
-
-	Result.QuadPart = Int32x32To64(nNumber, nNumerator) + (nDenominator / 2);
-
-	if (nDenominator > Result.HighPart)
-	{
-		Result.LowPart = RtlEnlargedUnsignedDivide(*(PULARGE_INTEGER)&Result, (uint32_t)nDenominator, (uint32_t*)&Result.HighPart);
-
-		if ((int)Result.LowPart >= 0)
-		{
-			return (Negative >= 0) ? (int)Result.LowPart : -(int)Result.LowPart;
-		}
-	}
-
-	return -1;
-}
+uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER, uint32_t, uint32_t*);
+int MulDiv(int, int, int);
 
 #endif

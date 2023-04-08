@@ -19,9 +19,9 @@ PlatformChar GsmPage1[] = PLATFORMSTR("??????????\n??\r??????^??????\x1b????????
 
 std::wregex RegMatchGsmDate = std::wregex(PLATFORMSTR("^([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9])([0-9])"), std::wregex::icase);
 
-void DecodeGsmSeptet(std::byte code, PlatformChar** page, PlatformString* decoded)
+void DecodeGsmSeptet(byte code, PlatformChar** page, PlatformString* decoded)
 {
-	if (code == std::byte(0x1B))
+	if (code == 0x1B)
 	{
 		*page = GsmPage1;
 		return;
@@ -34,11 +34,11 @@ void DecodeGsmSeptet(std::byte code, PlatformChar** page, PlatformString* decode
 
 #define ENDIFNECESSARY if (it == end) return false
 
-bool DecodeGsmSeptetData(std::vector<std::byte>::iterator it, std::vector<std::byte>::iterator end, int chars, int skip, PlatformString* decoded)
+bool DecodeGsmSeptetData(std::vector<byte>::iterator it, std::vector<byte>::iterator end, int chars, int skip, PlatformString* decoded)
 {
 	*decoded = PlatformString();
 
-	std::byte c = std::byte(0);
+	byte c = 0;
 
 	PlatformChar* page = GsmPage0;
 
@@ -48,9 +48,9 @@ bool DecodeGsmSeptetData(std::vector<std::byte>::iterator it, std::vector<std::b
 
 	while (cchar < skip)
 	{
-		if ((num % 7) == 0 && c > std::byte(0))
+		if ((num % 7) == 0 && c > 0)
 		{
-			c = std::byte(0);
+			c = 0;
 			cchar++;
 			continue;
 		}
@@ -64,17 +64,17 @@ bool DecodeGsmSeptetData(std::vector<std::byte>::iterator it, std::vector<std::b
 
 	while (cchar < chars)
 	{
-		if ((num % 7) == 0 && c > std::byte(0))
+		if ((num % 7) == 0 && c > 0)
 		{
-			DecodeGsmSeptet(c & std::byte(0x7F), &page, decoded);
-			c = std::byte(0);
+			DecodeGsmSeptet(c & 0x7F, &page, decoded);
+			c = 0;
 			cchar++;
 			continue;
 		}
 
 		ENDIFNECESSARY;
 
-		DecodeGsmSeptet((c | ((*it) << (num % 7))) & std::byte(0x7F), &page, decoded);
+		DecodeGsmSeptet((c | ((*it) << (num % 7))) & 0x7F, &page, decoded);
 
 		c = (*it++) >> (7 - (num++ % 7));
 
@@ -84,9 +84,9 @@ bool DecodeGsmSeptetData(std::vector<std::byte>::iterator it, std::vector<std::b
 	return true;
 }
 
-void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
+void DecodeHexToBin(const PlatformString& data, std::vector<byte>* decoded)
 {
-	*decoded = std::vector<std::byte>();
+	*decoded = std::vector<byte>();
 
 	PlatformChar buff[] = PLATFORMSTR("\0\0");
 
@@ -97,7 +97,7 @@ void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 		if (it == data.end())
 		{
 			buff[1] = PLATFORMSTR('\0');
-			decoded->push_back(std::byte(std::stoul(buff, nullptr, 16)));
+			decoded->push_back((byte)std::stoul(buff, nullptr, 16));
 			break;
 		}
 		else
@@ -105,7 +105,7 @@ void DecodeHexToBin(const PlatformString& data, std::vector<std::byte>* decoded)
 			buff[1] = *it;
 		}
 
-		decoded->push_back(std::byte(std::stoul(buff, nullptr, 16)));
+		decoded->push_back((byte)std::stoul(buff, nullptr, 16));
 	}
 }
 
@@ -185,7 +185,7 @@ bool ParseGsmDateTime(PlatformString& value, PlatformString* datetime)
 
 bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString* datetime, PlatformString* message)
 {
-	std::vector<std::byte> buffer;
+	std::vector<byte> buffer;
 	DecodeHexToBin(pdu, &buffer);
 
 	auto it = buffer.begin();
@@ -221,8 +221,8 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 	{
 		ENDIFNECESSARY3;
 
-		number.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & std::byte(0xF)));
-		number.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & std::byte(0xF)));
+		number.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & 0xF));
+		number.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & 0xF));
 	}
 
 	if ((int)number.size() < senderNum)
@@ -249,8 +249,8 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 	{
 		ENDIFNECESSARY3;
 
-		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & std::byte(0xF)));
-		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & std::byte(0xF)));
+		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)((*it) & 0xF));
+		timestamp.push_back(PLATFORMSTR('0') + (PlatformChar)(((*it) >> 4) & 0xF));
 	}
 
 	if (!ParseGsmDateTime(timestamp, datetime))
