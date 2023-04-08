@@ -218,13 +218,19 @@ void OnCommand(OverlappedComm& ofm, const PlatformString& cmd, const PlatformStr
 				std::time_t t = std::time(nullptr);
 				std::tm* tx = localtime(&t);
 
-				auto msg = PlatformString(PLATFORMSTR("Caller: ")).append(caller)
-					.append(PLATFORMSTR("\r\n")).
-					append(PLATFORMSTR("Callee: ")).append(ofm.Store[PLATFORMSTR("+CNUM")])
-					.append(PLATFORMSTR("\r\n")).
-					append(PLATFORMSTR("Date: ")).append((PlatformStream() << std::put_time(tx, PLATFORMSTR("%FT%T%z"))).str());
+				PlatformStream strm;
 
-				AddProcessEmail({ PLATFORMSTR("Call received"), msg });
+				strm << std::put_time(tx, PLATFORMSTR("%FT%T%z"));
+
+				auto msg = PlatformString(PLATFORMSTR("Caller: ")).append(caller)
+					.append(PLATFORMSTR("\r\n"))
+					.append(PLATFORMSTR("Callee: ")).append(ofm.Store[PLATFORMSTR("+CNUM")])
+					.append(PLATFORMSTR("\r\n"))
+					.append(PLATFORMSTR("Date: ")).append(strm.str());
+
+				EmailData ed = { PLATFORMSTR("Call received"), msg };
+
+				AddProcessEmail(ed);
 			}
 
 			recentCaller = caller;
@@ -367,14 +373,16 @@ void ProcessMessage(const PlatformString& number, const PlatformString& cmd, con
 	if (ParseGsmPDU(value, &from, &datetime, &message))
 	{
 		auto msg = PlatformString(PLATFORMSTR("Sender: ")).append(from)
-			.append(PLATFORMSTR("\r\n")).
-			append(PLATFORMSTR("Receiver: ")).append(number)
-			.append(PLATFORMSTR("\r\n")).
-			append(PLATFORMSTR("Date: ")).append(datetime)
-			.append(PLATFORMSTR("\r\n\r\n")).
-			append(message);
+			.append(PLATFORMSTR("\r\n"))
+			.append(PLATFORMSTR("Receiver: ")).append(number)
+			.append(PLATFORMSTR("\r\n"))
+			.append(PLATFORMSTR("Date: ")).append(datetime)
+			.append(PLATFORMSTR("\r\n\r\n"))
+			.append(message);
 
-		AddProcessEmail({ PLATFORMSTR("SMS received"), msg });
+		EmailData ed = { PLATFORMSTR("SMS received"), msg };
+
+		AddProcessEmail(ed);
 	}
 
 	if (!ofm.ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
