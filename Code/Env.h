@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout
@@ -29,69 +30,72 @@ using byte = unsigned char;
 int MainLoop(const std::vector<PlatformString>&);
 void EnsureCommPort(const PlatformString&);
 
+template<typename T>
+class SafeHandlePtr :public std::shared_ptr<T>
+{
+private:
+	std::function<bool(T)> mFuncValidValue;
+protected:
+	SafeHandlePtr()
+	{
+		// nothing
+	}
+public:
+	template<typename D>
+	SafeHandlePtr(T value, std::function<bool(T)> funcValidValue, D* deleter) : std::shared_ptr<T>((T*)value, [funcValidValue, deleter](T* v) { if (funcValidValue((T)v)) deleter((T)v); })
+	{
+		mFuncValidValue = funcValidValue;
+	}
+
+	operator T() const
+	{
+		return (T)this->get();
+	}
+
+	operator bool() const
+	{
+		return mFuncValidValue((T)this->get());
+	}
+};
+
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
 #include <sdkddkver.h>
 #include <boost/asio.hpp>
 #include <Windows.h>
 
-template<typename T>
-bool IsValidHandleValue(T arg)
-{
-	if constexpr (std::is_same_v<T, HANDLE>)
-	{
-		return arg != NULL && arg != INVALID_HANDLE_VALUE;
-	}
-
-	return arg != NULL;
-}
-
-template<typename T, typename D>
-class SafeDeleter
-{
-private:
-	D* mDeleter;
-public:
-	SafeDeleter(D* deleter) :mDeleter(deleter)
-	{
-		// nothing
-	}
-
-	void operator()(T* arg)
-	{
-		if (IsValidHandleValue(arg))
-		{
-			mDeleter(arg);
-		}
-	}
-};
-
-template<typename T>
-class SafeHandle :public std::shared_ptr<std::remove_pointer_t<T>>
+class SafeHANDLE :public SafeHandlePtr<HANDLE>
 {
 public:
-	SafeHandle()
-	{
-		// nothing
-	}
-	template<typename D>
-	SafeHandle(T value, D* deleter) : std::shared_ptr<std::remove_pointer_t<T>>(value, SafeDeleter<std::remove_pointer_t<T>, D>(deleter))
+	SafeHANDLE()
 	{
 		// nothing
 	}
 
-	operator T() const
+	SafeHANDLE(HANDLE handle) :SafeHandlePtr<HANDLE>(handle, [](HANDLE v) { return v != NULL && v != INVALID_HANDLE_VALUE; }, CloseHandle)
 	{
-		return this->get();
-	}
-
-	operator bool() const
-	{
-		return IsValidHandleValue(this->get());
+		// nothing
 	}
 };
 
 #else
+
+#include <fcntl.h>
+#include <unistd.h>
+
+class SafeFdPtr :public SafeHandlePtr<int>
+{
+public:
+	SafeFdPtr()
+	{
+		// nothing
+	}
+
+	SafeFdPtr(int fd) :SafeHandlePtr<int>(fd, [](int v) { return !(v < 0); }, close)
+	{
+		// nothing
+	}
+};
 
 typedef union _LARGE_INTEGER {
 	struct {

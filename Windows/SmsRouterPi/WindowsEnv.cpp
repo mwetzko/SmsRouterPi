@@ -89,9 +89,9 @@ PlatformString UCS2ToPlatformString(const std::u16string& str)
 class PlatformSerialWindows :public PlatformSerial
 {
 private:
-	SafeHandle<HANDLE> mCom;
-	SafeHandle<HANDLE> mWriteReset;
-	SafeHandle<HANDLE> mReadReset;
+	SafeHANDLE mCom;
+	SafeHANDLE mWriteReset;
+	SafeHANDLE mReadReset;
 private:
 	bool WaitCancelOverlapped(HANDLE overlapped)
 	{
@@ -119,7 +119,7 @@ private:
 		return false;
 	}
 public:
-	PlatformSerialWindows(const SafeHandle<HANDLE>& com, const SafeHandle<HANDLE>& writeReset, const SafeHandle<HANDLE>& readReset) :PlatformSerial()
+	PlatformSerialWindows(const SafeHANDLE& com, const SafeHANDLE& writeReset, const SafeHANDLE& readReset) :PlatformSerial()
 	{
 		mCom = com;
 		mWriteReset = writeReset;
@@ -196,7 +196,7 @@ public:
 
 bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 {
-	SafeHandle com = SafeHandle(CreateFileW(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0), CloseHandle);
+	SafeHANDLE com = SafeHANDLE(CreateFileW(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0));
 
 	if (com)
 	{
@@ -223,11 +223,11 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 		PurgeComm(com, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
 
-		auto writeReset = SafeHandle(CreateEventW(NULL, TRUE, FALSE, NULL), CloseHandle);
+		auto writeReset = SafeHANDLE(CreateEventW(NULL, TRUE, FALSE, NULL));
 
 		if (writeReset)
 		{
-			auto readReset = SafeHandle(CreateEventW(NULL, TRUE, FALSE, NULL), CloseHandle);
+			auto readReset = SafeHANDLE(CreateEventW(NULL, TRUE, FALSE, NULL));
 
 			if (readReset)
 			{

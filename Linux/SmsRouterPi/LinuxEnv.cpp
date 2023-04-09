@@ -124,7 +124,13 @@ public:
 
 bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 {
-	// todo
+	SafeFdPtr com = SafeFdPtr(open(PlatformStringToUtf8(port).c_str(), O_RDWR));
+
+	if (com)
+	{
+
+
+	}
 
 	return false;
 }
