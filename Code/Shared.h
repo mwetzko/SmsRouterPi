@@ -174,3 +174,24 @@ bool WaitExitOrTimeout(const std::chrono::duration<_Rep, _Period>& _Rel_time)
 {
 	return ExitReset.WaitOrTimeout(_Rel_time);
 }
+
+template<typename T, typename S>
+bool ReadAll(const T& filename, S& content, std::ios_base::openmode mode = std::ios_base::in)
+{
+	std::basic_ifstream<typename S::value_type, std::char_traits<typename S::value_type>> strm(filename, mode);
+
+	if (!strm)
+	{
+		return false;
+	}
+
+	content = S(std::istreambuf_iterator<typename S::value_type>(strm), std::istreambuf_iterator<typename S::value_type>());
+
+	return true;
+}
+
+template<typename T, typename S>
+bool ReadAllText(const T& filename, S& content)
+{
+	return ReadAll(filename, content);
+}

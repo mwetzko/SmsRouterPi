@@ -10,6 +10,7 @@
 #include "Shared.h"
 #include "OverlappedComm.h"
 #include <codecvt>
+#include <filesystem>
 
 int main(int argc, char** argv)
 {
@@ -25,9 +26,63 @@ int main(int argc, char** argv)
 	return MainLoop(vec);
 }
 
-void LoopUntilExit()
+std::vector<PlatformString> GetPorts(int vendor, int product)
 {
+	std::vector<PlatformString> names;
 
+	std::filesystem::path p("/sys/bus/usb-serial/devices");
+
+	try
+	{
+		if (exists(p))
+		{
+			for (auto it : std::filesystem::directory_iterator(p))
+			{
+				try
+				{
+					if (is_symlink(it.symlink_status()))
+					{
+						std::filesystem::path symlink_points_at = read_symlink(it);
+						std::filesystem::path canonical_path = std::filesystem::canonical(p / symlink_points_at);
+
+						std::filesystem::path idVendorPath = canonical_path / ".." / ".." / "idVendor";
+						std::filesystem::path idProductPath = canonical_path / ".." / ".." / "idProduct";
+
+						Utf8String strVendor;
+						Utf8String strProduct;
+
+						if (ReadAllText(idVendorPath, strVendor) && ReadAllText(idProductPath, strProduct))
+						{
+							if (std::stoi(strVendor, nullptr, 16) == vendor && std::stoi(strProduct, nullptr, 16) == product)
+							{
+								names.push_back(Utf8ToPlatformString("/dev" / it.path().filename()));
+							}
+						}
+					}
+				}
+				catch (const std::exception&)
+				{
+					// nothing
+				}
+			}
+		}
+	}
+	catch (const std::exception&)
+	{
+		// nothing
+	}
+
+	return names;
+}
+
+void HandleTimer()
+{
+	auto ports = GetPorts(0x1A86, 0x7523);
+
+	for (auto it : ports)
+	{
+		EnsureCommPort(it);
+	}
 }
 
 PlatformString UCS2ToPlatformString(const std::u16string& str)
@@ -72,11 +127,6 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 	// todo
 
 	return false;
-}
-
-bool WaitOrExitApp()
-{
-	return true;
 }
 
 uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER Dividend, uint32_t Divisor, uint32_t* Remainder)
