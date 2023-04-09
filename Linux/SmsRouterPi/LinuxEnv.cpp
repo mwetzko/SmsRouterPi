@@ -10,11 +10,50 @@
 #include "Shared.h"
 #include "OverlappedComm.h"
 #include <codecvt>
-#include <filesystem>
+
+WaitResetEvent ExitProcessReset;
+
+void CtrlHandler(int);
+
+void SetControlHandler()
+{
+	struct sigaction new_action;
+	struct sigaction old_action;
+
+	new_action.sa_handler = CtrlHandler;
+	sigemptyset(&new_action.sa_mask);
+	new_action.sa_flags = 0;
+
+	sigaction(SIGINT, NULL, &old_action);
+	if (old_action.sa_handler != SIG_IGN)
+	{
+		sigaction(SIGINT, &new_action, NULL);
+	}
+
+	sigaction(SIGHUP, NULL, &old_action);
+	if (old_action.sa_handler != SIG_IGN)
+	{
+		sigaction(SIGHUP, &new_action, NULL);
+	}
+
+	sigaction(SIGTERM, NULL, &old_action);
+	if (old_action.sa_handler != SIG_IGN)
+	{
+		sigaction(SIGTERM, &new_action, NULL);
+	}
+
+	sigaction(SIGQUIT, NULL, &old_action);
+	if (old_action.sa_handler != SIG_IGN)
+	{
+		sigaction(SIGQUIT, &new_action, NULL);
+	}
+}
 
 int main(int argc, char** argv)
 {
 	std::setlocale(LC_ALL, "C.UTF-8");
+
+	SetControlHandler();
 
 	std::vector<PlatformString> vec;
 
@@ -23,7 +62,11 @@ int main(int argc, char** argv)
 		vec.push_back(Utf8ToPlatformString(argv[i]));
 	}
 
-	return MainLoop(vec);
+	int res = MainLoop(vec);
+
+	ExitProcessReset.Set();
+
+	return res;
 }
 
 std::vector<PlatformString> GetPorts(int vendor, int product)
@@ -221,4 +264,10 @@ int MulDiv(int nNumber, int nNumerator, int nDenominator)
 	}
 
 	return -1;
+}
+
+void CtrlHandler(int signum)
+{
+	ExitReset.Set();
+	ExitProcessReset.WaitOrTimeout(30s);
 }
