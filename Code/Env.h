@@ -82,6 +82,7 @@ public:
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <termios.h>
 
 class SafeFdPtr :public SafeHandlePtr<int>
 {

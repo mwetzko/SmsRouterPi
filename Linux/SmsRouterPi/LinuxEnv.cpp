@@ -14,7 +14,7 @@
 
 int main(int argc, char** argv)
 {
-	std::setlocale(LC_ALL, "iv.utf8");
+	std::setlocale(LC_ALL, "C.UTF-8");
 
 	std::vector<PlatformString> vec;
 
@@ -95,13 +95,38 @@ PlatformString UCS2ToPlatformString(const std::u16string& str)
 class PlatformSerialLinux :public PlatformSerial
 {
 private:
-
+	SafeFdPtr mCom;
 private:
-
-public:
-	PlatformSerialLinux() :PlatformSerial()
+	bool WaitReadLoop()
 	{
+		for (int i = 0; i < 150; i++)
+		{
+			int num = read(mCom, mReadBuffer, mReadBufferNum);
 
+			if (num > 0)
+			{
+				mReadLineBuffer.append(mReadBuffer, num);
+				return true;
+			}
+			else if (num == 0)
+			{
+				if (WaitExitOrTimeout(100ms))
+				{
+					break;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		return false;
+	}
+public:
+	PlatformSerialLinux(const SafeFdPtr& com) :PlatformSerial()
+	{
+		mCom = com;
 	}
 
 	bool WriteLine(const Utf8String& cmd)
@@ -109,14 +134,27 @@ public:
 		auto str = cmd;
 		str.append("\n");
 
-		// todo
+		auto sz = str.size() * sizeof(Utf8Char);
 
-		return true;
+		return write(mCom, str.c_str(), sz) == (ssize_t)sz;
 	}
 
 	bool ReadLine(Utf8String* line)
 	{
-		// todo
+		while (!WaitExitOrTimeout(1ms))
+		{
+			Utf8String str;
+			if (CanReadLine(&str))
+			{
+				line->assign(str);
+				return true;
+			}
+
+			if (!WaitReadLoop())
+			{
+				return false;
+			}
+		}
 
 		return false;
 	}
@@ -128,8 +166,22 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 	if (com)
 	{
+		termios tty = { 0 };
 
+		tty.c_cflag = CS8 | CREAD | CLOCAL;
+		tty.c_iflag = IXON | IXOFF;
+		tty.c_cc[VTIME] = 1; // 100ms
+		tty.c_cc[VMIN] = 0;
 
+		cfsetispeed(&tty, B9600);
+		cfsetospeed(&tty, B9600);
+
+		if (tcsetattr(com, TCSANOW, &tty) == 0)
+		{
+			*ofm = OverlappedComm(port, std::make_shared<PlatformSerialLinux>(com));
+
+			return true;
+		}
 	}
 
 	return false;
