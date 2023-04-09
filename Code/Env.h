@@ -13,6 +13,10 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <filesystem>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define PLATFORMSTR(x) L##x
 #define PLATFORMCOUT std::wcout
@@ -29,6 +33,15 @@ using byte = unsigned char;
 
 int MainLoop(const std::vector<PlatformString>&);
 void EnsureCommPort(const PlatformString&);
+
+#if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
+
+#pragma warning(push)
+#pragma warning(disable: 4302)
+#pragma warning(disable: 4311)
+#pragma warning(disable: 4312)
+
+#endif
 
 template<typename T>
 class SafeHandlePtr :public std::shared_ptr<T>
@@ -60,9 +73,12 @@ public:
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
+#pragma warning(pop)
+
 #include <sdkddkver.h>
 #include <boost/asio.hpp>
 #include <Windows.h>
+#include <io.h>
 
 class SafeHANDLE :public SafeHandlePtr<HANDLE>
 {
@@ -78,26 +94,14 @@ public:
 	}
 };
 
+#define PLATFORMOPEN(x, y, z) _wopen((x).c_str(), y, z)
+#define PLATFORMCLOSE _close
+
 #else
 
-#include <fcntl.h>
-#include <unistd.h>
 #include <termios.h>
 #include <signal.h>
-
-class SafeFdPtr :public SafeHandlePtr<int>
-{
-public:
-	SafeFdPtr()
-	{
-		// nothing
-	}
-
-	SafeFdPtr(int fd) :SafeHandlePtr<int>(fd, [](int v) { return !(v < 0); }, close)
-	{
-		// nothing
-	}
-};
+#include <unistd.h>
 
 typedef union _LARGE_INTEGER {
 	struct {
@@ -134,4 +138,34 @@ typedef union _ULARGE_INTEGER {
 uint32_t RtlEnlargedUnsignedDivide(ULARGE_INTEGER, uint32_t, uint32_t*);
 int MulDiv(int, int, int);
 
+template<typename T>
+Utf8String EnsurePathString(const T& path)
+{
+	if constexpr (std::is_same_v<T, std::filesystem::path>)
+	{
+		return path;
+	}
+	else
+	{
+		return PlatformStringToUtf8(path);
+	}
+}
+
+#define PLATFORMOPEN(x, y, z) open(EnsurePathString(x).c_str(), y, z)
+#define PLATFORMCLOSE close
+
 #endif
+
+class SafeFdPtr :public SafeHandlePtr<int>
+{
+public:
+	SafeFdPtr()
+	{
+		// nothing
+	}
+
+	SafeFdPtr(int fd) :SafeHandlePtr<int>(fd, [](int v) { return !(v < 0); }, PLATFORMCLOSE)
+	{
+		// nothing
+	}
+};

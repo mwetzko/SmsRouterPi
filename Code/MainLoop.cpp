@@ -61,34 +61,50 @@ size_t GetRemainingThreads()
 	return Ports.size();
 }
 
+void PrintUsage(const std::vector<PlatformString>& args)
+{
+	PLATFORMCERR << PLATFORMSTR("Usage: ") << args[0] << PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>") << std::endl;
+}
+
 int MainLoop(const std::vector<PlatformString>& args)
 {
+	auto root = std::filesystem::path(args[0]);
+
+	root = root.parent_path();
+
+	SafeFdPtr locker(PLATFORMOPEN((root / PLATFORMSTR("run.lock")), O_RDWR | O_CREAT, 0));
+
+	if (!locker)
+	{
+		return 0;
+	}
+
 	std::map<PlatformString, PlatformString, PlatformCIComparer> parsed;
 	ParseArguments(args, parsed);
 
 	if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
 	{
-		auto path = std::filesystem::path(args[0]);
+		auto path = root / PLATFORMSTR("arguments.json");
 
-		path = path.parent_path();
-
-		path /= "arguments.json";
-
-		std::ifstream argsfile(path);
-
-		if (argsfile)
+		PlatformString json;
+		if (ReadAllText(path, json))
 		{
-			auto data = nlohmann::json::parse(argsfile);
+			auto data = nlohmann::json::parse(json);
 
 			for (const auto& [key, value] : data.items())
 			{
 				parsed[Utf8ToPlatformString(key)] = Utf8ToPlatformString(value.get<Utf8String>());
 			}
-		}
 
-		if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
+			if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
+			{
+				PrintUsage(args);
+				return 1;
+			}
+		}
+		else
 		{
-			PLATFORMCERR << PLATFORMSTR("Usage: ") << args[0] << PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>") << std::endl;
+			PrintUsage(args);
 			return 1;
 		}
 	}

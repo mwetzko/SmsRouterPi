@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <regex>
 #include <iomanip>
-#include <filesystem>
 #include <condition_variable>
 #include <curl/curl.h>
 
