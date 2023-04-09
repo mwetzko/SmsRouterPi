@@ -24,28 +24,15 @@ void SetControlHandler()
 	sigemptyset(&new_action.sa_mask);
 	new_action.sa_flags = 0;
 
-	sigaction(SIGINT, NULL, &old_action);
-	if (old_action.sa_handler != SIG_IGN)
-	{
-		sigaction(SIGINT, &new_action, NULL);
-	}
+	std::vector<int> signals = { SIGINT , SIGHUP, SIGTERM, SIGQUIT };
 
-	sigaction(SIGHUP, NULL, &old_action);
-	if (old_action.sa_handler != SIG_IGN)
+	for (auto num : signals)
 	{
-		sigaction(SIGHUP, &new_action, NULL);
-	}
-
-	sigaction(SIGTERM, NULL, &old_action);
-	if (old_action.sa_handler != SIG_IGN)
-	{
-		sigaction(SIGTERM, &new_action, NULL);
-	}
-
-	sigaction(SIGQUIT, NULL, &old_action);
-	if (old_action.sa_handler != SIG_IGN)
-	{
-		sigaction(SIGQUIT, &new_action, NULL);
+		sigaction(num, NULL, &old_action);
+		if (old_action.sa_handler != SIG_IGN)
+		{
+			sigaction(num, &new_action, NULL);
+		}
 	}
 }
 
