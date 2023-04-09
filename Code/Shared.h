@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <regex>
 #include <iomanip>
+#include <condition_variable>
 #include <curl/curl.h>
 
 using namespace std::chrono_literals;
