@@ -24,7 +24,7 @@ void SetControlHandler()
 	sigemptyset(&new_action.sa_mask);
 	new_action.sa_flags = 0;
 
-	std::vector<int> signals = { SIGINT , SIGHUP, SIGTERM, SIGQUIT };
+	std::vector<int> signals = { SIGINT, SIGHUP, SIGTERM, SIGQUIT };
 
 	for (auto num : signals)
 	{
