@@ -23,6 +23,8 @@
 #include <iomanip>
 #include <curl/curl.h>
 
+using namespace std::chrono_literals;
+
 template<typename ...Args>
 PlatformString FormatStr(const PlatformString& format, Args... args)
 {
@@ -90,7 +92,6 @@ struct PlatformCIComparer
 
 void ParseArguments(const std::vector<PlatformString>& args, std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed);
 bool ValidateArguments(const std::map<PlatformString, PlatformString, PlatformCIComparer>& parsed, const std::vector<PlatformString>& required);
-bool WaitOrExitApp();
 bool SendEmail(const PlatformString& subject, const PlatformString& message, const PlatformString& smtpusername, const PlatformString& smtppassword, const PlatformString& smtpserver, const PlatformString& smtpfromto);
 
 template<typename T>
@@ -138,3 +139,37 @@ public:
 	virtual bool WriteLine(const Utf8String& cmd) = 0;
 	virtual bool ReadLine(Utf8String* line) = 0;
 };
+
+class WaitResetEvent
+{
+protected:
+	std::condition_variable mCV;
+	std::mutex mMutex;
+	bool mSignaled;
+public:
+	void Set()
+	{
+		std::lock_guard<std::mutex> lock(mMutex);
+		mSignaled = true;
+		mCV.notify_all();
+	}
+	void Reset()
+	{
+		std::lock_guard<std::mutex> lock(mMutex);
+		mSignaled = false;
+	}
+	template <class _Rep, class _Period>
+	bool WaitOrTimeout(const std::chrono::duration<_Rep, _Period>& _Rel_time)
+	{
+		std::unique_lock<std::mutex> lock(mMutex);
+		return mCV.wait_for(lock, _Rel_time, [this] { return this->mSignaled; });
+	}
+};
+
+extern WaitResetEvent ExitReset;
+
+template <class _Rep, class _Period>
+bool WaitExitOrTimeout(const std::chrono::duration<_Rep, _Period>& _Rel_time)
+{
+	return ExitReset.WaitOrTimeout(_Rel_time);
+}

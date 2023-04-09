@@ -21,10 +21,9 @@ std::wregex RegMatchCallerId = std::wregex(PLATFORMSTR("^['\"]?([^,'\"]+)['\"]?,
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
 
-void LoopUntilExit();
+void HandleTimer();
 bool GetCommDevice(const PlatformString&, OverlappedComm*);
 void RemoveCommPort(const PlatformString&);
-void GetRemainingThreads(std::vector<std::shared_ptr<std::thread>>*);
 void ProcessCommPort(const PlatformString&);
 void ProcessCommLoop(OverlappedComm&);
 void ProcessMessage(const PlatformString&, const PlatformString&, const PlatformString&, OverlappedComm&);
@@ -53,6 +52,15 @@ std::mutex EmailsLock;
 
 std::thread EmailThread;
 std::mutex EmailThreadLock;
+
+WaitResetEvent ExitReset;
+
+size_t GetRemainingThreads()
+{
+	const std::lock_guard<std::mutex> lock(PortsLock);
+
+	return Ports.size();
+}
 
 int MainLoop(const std::vector<PlatformString>& args)
 {
@@ -99,19 +107,28 @@ int MainLoop(const std::vector<PlatformString>& args)
 	}
 #endif
 
-	LoopUntilExit();
+	HandleTimer();
 
-	std::vector<std::shared_ptr<std::thread>> threads;
-	GetRemainingThreads(&threads);
-
-	for (auto it : threads)
+	while (!WaitExitOrTimeout(10s))
 	{
-		it->join();
+		HandleTimer();
+	}
+
+	while (GetRemainingThreads() > 0)
+	{
+		std::this_thread::sleep_for(100ms);
 	}
 
 	if (EmailThread.joinable())
 	{
-		EmailThread.join();
+		try
+		{
+			EmailThread.join();
+		}
+		catch (const std::exception&)
+		{
+			// nothing
+		}
 	}
 
 	return 0;
@@ -139,18 +156,6 @@ void RemoveCommPort(const PlatformString& port)
 	{
 		it->second->detach();
 		Ports.erase(it);
-	}
-}
-
-void GetRemainingThreads(std::vector<std::shared_ptr<std::thread>>* threads)
-{
-	*threads = std::vector<std::shared_ptr<std::thread>>();
-
-	const std::lock_guard<std::mutex> lock(PortsLock);
-
-	for (auto it : Ports)
-	{
-		threads->push_back(it.second);
 	}
 }
 
@@ -471,23 +476,27 @@ bool GetNextEmailData(EmailData* data)
 
 void ProcessSendEmail()
 {
-	try
+	int num = 0;
+
+	EmailData data;
+	while (GetNextEmailData(&data))
 	{
-		EmailData data;
-		while (GetNextEmailData(&data))
+		if (SendEmail(data.Subject, data.Message, smtpusername, smtppassword, smtpserver, smtpfromto))
 		{
-			if (!SendEmail(data.Subject, data.Message, smtpusername, smtppassword, smtpserver, smtpfromto))
+			num = 0;
+		}
+		else
+		{
+			if ((num + 1) < 5)
 			{
-				if (WaitOrExitApp())
-				{
-					break;
-				}
+				num += 1;
+			}
+
+			if (WaitExitOrTimeout(num * 1min))
+			{
+				break;
 			}
 		}
-	}
-	catch (const std::exception&)
-	{
-		// nothing
 	}
 
 	const std::lock_guard<std::mutex> lock(EmailThreadLock);

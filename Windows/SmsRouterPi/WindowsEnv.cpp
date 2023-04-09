@@ -13,18 +13,15 @@
 #include <SetupAPI.h>
 #include <Ntddser.h>
 
-SafeHandle<HANDLE> ExitApp;
+WaitResetEvent ExitProcessReset;
+
+BOOL WINAPI CtrlHandler(DWORD);
 
 int wmain(int argc, wchar_t* argv[])
 {
 	std::setlocale(LC_ALL, "iv.utf8");
 
-	ExitApp = SafeHandle(CreateEventW(NULL, TRUE, FALSE, NULL), CloseHandle);
-
-	if (!ExitApp)
-	{
-		return 3;
-	}
+	SetConsoleCtrlHandler(CtrlHandler, TRUE);
 
 	std::vector<PlatformString> vec;
 
@@ -33,7 +30,11 @@ int wmain(int argc, wchar_t* argv[])
 		vec.push_back(argv[i]);
 	}
 
-	return MainLoop(vec);
+	int res = MainLoop(vec);
+
+	ExitProcessReset.Set();
+
+	return res;
 }
 
 void CheckHardwareID(DWORD vid, DWORD pid)
@@ -74,27 +75,9 @@ void CheckHardwareID(DWORD vid, DWORD pid)
 	delete[] str;
 }
 
-void CALLBACK TimerCallback(HWND, UINT, UINT_PTR, DWORD)
+void HandleTimer()
 {
 	CheckHardwareID(0x1A86, 0x7523);
-}
-
-void LoopUntilExit()
-{
-	TimerCallback(NULL, 0, NULL, 0);
-
-	UINT_PTR timer = SetTimer(NULL, NULL, 10000, TimerCallback);
-
-	MSG msg = { 0 };
-	while (GetMessageW(&msg, NULL, 0, 0) > 0)
-	{
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
-	}
-
-	KillTimer(NULL, timer);
-
-	SetEvent(ExitApp);
 }
 
 PlatformString UCS2ToPlatformString(const std::u16string& str)
@@ -107,35 +90,40 @@ class PlatformSerialWindows :public PlatformSerial
 {
 private:
 	SafeHandle<HANDLE> mCom;
-	SafeHandle<HANDLE> mCancel; // ExitApp
 	SafeHandle<HANDLE> mWriteReset;
 	SafeHandle<HANDLE> mReadReset;
 private:
 	bool WaitCancelOverlapped(HANDLE overlapped)
 	{
-		HANDLE waits[] = { mCancel, overlapped };
-		DWORD num = WaitForMultipleObjects(sizeof(waits) / sizeof(waits[0]), (const HANDLE*)(&waits), FALSE, 30000);
+		for (int i = 0; i < 150; i++)
+		{
+			auto res = WaitForSingleObject(overlapped, 100);
 
-		if (num == WAIT_FAILED || num == WAIT_TIMEOUT)
-		{
-			return false;
+			if (res == WAIT_OBJECT_0)
+			{
+				return true;
+			}
+			else if (res == WAIT_TIMEOUT)
+			{
+				if (WaitExitOrTimeout(100ms))
+				{
+					break;
+				}
+			}
+			else
+			{
+				break;
+			}
 		}
-		else if ((num - WAIT_OBJECT_0) == 0)
-		{
-			return false;
-		}
-		else
-		{
-			return true;
-		}
+
+		return false;
 	}
 public:
-	PlatformSerialWindows(const SafeHandle<HANDLE>& com, const SafeHandle<HANDLE>& writeReset, const SafeHandle<HANDLE>& readReset, const SafeHandle<HANDLE>& cancel) :PlatformSerial()
+	PlatformSerialWindows(const SafeHandle<HANDLE>& com, const SafeHandle<HANDLE>& writeReset, const SafeHandle<HANDLE>& readReset) :PlatformSerial()
 	{
 		mCom = com;
 		mWriteReset = writeReset;
 		mReadReset = readReset;
-		mCancel = cancel;
 	}
 
 	bool WriteLine(const Utf8String& cmd)
@@ -169,7 +157,7 @@ public:
 
 	bool ReadLine(Utf8String* line)
 	{
-		while (WaitForSingleObject(mCancel, 0) == WAIT_TIMEOUT)
+		while (!WaitExitOrTimeout(1ms))
 		{
 			Utf8String str;
 			if (CanReadLine(&str))
@@ -243,7 +231,7 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 			if (readReset)
 			{
-				*ofm = OverlappedComm(port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset, ExitApp));
+				*ofm = OverlappedComm(port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset));
 
 				return true;
 			}
@@ -253,7 +241,19 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 	return false;
 }
 
-bool WaitOrExitApp()
+BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 {
-	return WaitForSingleObject(ExitApp, 30000) == WAIT_OBJECT_0;
+	switch (fdwCtrlType)
+	{
+	case CTRL_C_EVENT:
+	case CTRL_CLOSE_EVENT:
+	case CTRL_BREAK_EVENT:
+	case CTRL_LOGOFF_EVENT:
+	case CTRL_SHUTDOWN_EVENT:
+		ExitReset.Set();
+		ExitProcessReset.WaitOrTimeout(30s);
+		return TRUE;
+	default:
+		return FALSE;
+	}
 }
