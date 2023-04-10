@@ -251,6 +251,13 @@ bool SIM800C::ProcessSms(const PlatformString& cmd, const PlatformString& pdu)
 			this->OnNewSms(*this, from, datetime, message);
 		}
 	}
+	else
+	{
+		if (this->OnNewSms)
+		{
+			this->OnNewSms(*this, PLATFORMSTR("FAILED TO PARSE"), PLATFORMSTR(""), pdu);
+		}
+	}
 
 	if (!this->ExecuteATCommand(FormatStr(PLATFORMSTR("AT+CMGD=%i"), index)))
 	{
