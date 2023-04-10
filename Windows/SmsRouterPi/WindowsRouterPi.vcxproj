@@ -178,12 +178,13 @@
   <ItemGroup>
     <ClInclude Include="..\..\Code\Env.h" />
     <ClInclude Include="..\..\Code\GsmDecoder.h" />
-    <ClInclude Include="..\..\Code\OverlappedComm.h" />
     <ClInclude Include="..\..\Code\Shared.h" />
+    <ClInclude Include="..\..\Code\SIM800C.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Code\MainLoop.cpp" />
     <ClCompile Include="..\..\Code\Shared.cpp" />
+    <ClCompile Include="..\..\Code\SIM800C.cpp" />
     <ClCompile Include="WindowsEnv.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

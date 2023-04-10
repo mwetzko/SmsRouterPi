@@ -8,12 +8,13 @@
 // SOFTWARE.
 
 #include "Shared.h"
-#include "OverlappedComm.h"
+#include "SIM800C.h"
 #include <Windows.h>
 #include <SetupAPI.h>
 #include <Ntddser.h>
 
 WaitResetEvent ExitProcessReset;
+SafeFdPtr ExclusiveProcess;
 
 BOOL WINAPI CtrlHandler(DWORD);
 
@@ -35,6 +36,17 @@ int wmain(int argc, wchar_t* argv[])
 	ExitProcessReset.Set();
 
 	return res;
+}
+
+bool CheckExclusiveProcess(const std::filesystem::path& exe)
+{
+	auto lockerFile = PlatformString(exe);
+
+	lockerFile.append(PLATFORMSTR(".lock"));
+
+	ExclusiveProcess = SafeFdPtr(_wopen(lockerFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC, _S_IWRITE));
+
+	return ExclusiveProcess;
 }
 
 void CheckHardwareID(DWORD vid, DWORD pid)
@@ -194,7 +206,7 @@ public:
 	}
 };
 
-bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
+bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 {
 	SafeHANDLE com = SafeHANDLE(CreateFileW(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0));
 
@@ -231,7 +243,7 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 			if (readReset)
 			{
-				*ofm = OverlappedComm(port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset));
+				*sim = SIM800C(port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset));
 
 				return true;
 			}

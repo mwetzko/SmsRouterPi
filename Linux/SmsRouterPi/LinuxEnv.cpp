@@ -8,10 +8,11 @@
 // SOFTWARE.
 
 #include "Shared.h"
-#include "OverlappedComm.h"
+#include "SIM800C.h"
 #include <codecvt>
 
 WaitResetEvent ExitProcessReset;
+SafeFdPtr ExclusiveProcess;
 
 void CtrlHandler(int);
 
@@ -51,9 +52,30 @@ int main(int argc, char** argv)
 
 	int res = MainLoop(vec);
 
+	if (res == -1)
+	{
+		PLATFORMCOUT << PLATFORMSTR("Last error: ") << errno << std::endl;
+	}
+
 	ExitProcessReset.Set();
 
 	return res;
+}
+
+bool CheckExclusiveProcess(const std::filesystem::path& exe)
+{
+	auto lockerFile = exe.string();
+
+	lockerFile.append(".lock");
+
+	ExclusiveProcess = SafeFdPtr(open(lockerFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+
+	if (ExclusiveProcess)
+	{
+		return flock(ExclusiveProcess, LOCK_EX) == 0;
+	}
+
+	return false;
 }
 
 std::vector<PlatformString> GetPorts(int vendor, int product)
@@ -190,7 +212,7 @@ public:
 	}
 };
 
-bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
+bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 {
 	SafeFdPtr com = SafeFdPtr(open(PlatformStringToUtf8(port).c_str(), O_RDWR));
 
@@ -208,7 +230,7 @@ bool GetCommDevice(const PlatformString& port, OverlappedComm* ofm)
 
 		if (tcsetattr(com, TCSANOW, &tty) == 0)
 		{
-			*ofm = OverlappedComm(port, std::make_shared<PlatformSerialLinux>(com));
+			*sim = SIM800C(port, std::make_shared<PlatformSerialLinux>(com));
 
 			return true;
 		}

@@ -37,13 +37,14 @@
   <ItemGroup>
     <ClCompile Include="..\..\Code\MainLoop.cpp" />
     <ClCompile Include="..\..\Code\Shared.cpp" />
+    <ClCompile Include="..\..\Code\SIM800C.cpp" />
     <ClCompile Include="LinuxEnv.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Code\Env.h" />
     <ClInclude Include="..\..\Code\GsmDecoder.h" />
-    <ClInclude Include="..\..\Code\OverlappedComm.h" />
     <ClInclude Include="..\..\Code\Shared.h" />
+    <ClInclude Include="..\..\Code\SIM800C.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{db59677b-0956-447c-afe1-28e2158731c5}</ProjectGuid>
@@ -104,27 +105,35 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <TargetName>SmsRouterPi</TargetName>
+    <RemoteDeployDir>$(RemoteRootDir)/$(TargetName)</RemoteDeployDir>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <VcpkgUseStatic>true</VcpkgUseStatic>

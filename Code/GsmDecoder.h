@@ -211,7 +211,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	/* int numberType = * */ it++;
+	it++; // number type
 
 	num = senderNum + (senderNum % 2);
 
@@ -235,7 +235,7 @@ bool ParseGsmPDU(const PlatformString& pdu, PlatformString* from, PlatformString
 
 	ENDIFNECESSARY3;
 
-	/* int proto = * */ it++;
+	it++; // proto
 
 	ENDIFNECESSARY3;
 

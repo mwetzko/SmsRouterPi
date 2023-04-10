@@ -32,6 +32,7 @@ using Utf8Char = Utf8String::value_type;
 using byte = unsigned char;
 
 int MainLoop(const std::vector<PlatformString>&);
+bool CheckExclusiveProcess(const std::filesystem::path&);
 void EnsureCommPort(const PlatformString&);
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
@@ -94,7 +95,6 @@ public:
 	}
 };
 
-#define PLATFORMOPEN(x, y, z) _wopen((x).c_str(), y, z)
 #define PLATFORMCLOSE _close
 
 #else
@@ -102,6 +102,7 @@ public:
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/file.h>
 
 typedef union _LARGE_INTEGER {
 	struct {
@@ -151,7 +152,6 @@ Utf8String EnsurePathString(const T& path)
 	}
 }
 
-#define PLATFORMOPEN(x, y, z) open(EnsurePathString(x).c_str(), y, z)
 #define PLATFORMCLOSE close
 
 #endif
