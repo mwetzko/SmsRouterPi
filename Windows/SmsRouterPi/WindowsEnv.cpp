@@ -219,10 +219,6 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 		DCB dcb = { 0 };
 		dcb.DCBlength = sizeof(DCB);
 		dcb.BaudRate = 9600;
-		dcb.fOutX = 1;
-		dcb.fInX = 1;
-		dcb.XonLim = 16384;
-		dcb.XoffLim = 8192;
 		dcb.ByteSize = 8;
 		dcb.StopBits = 1;
 
