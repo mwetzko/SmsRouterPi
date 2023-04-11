@@ -387,7 +387,7 @@ bool SIM800C::PerformLoop()
 			PlatformString line;
 			if (!this->ReadLine(&line))
 			{
-				return true;
+				return !WaitExitOrTimeout(0ms);
 			}
 
 			if (line == PLATFORMSTR(""))
