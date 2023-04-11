@@ -72,7 +72,7 @@ bool CheckExclusiveProcess(const std::filesystem::path& exe)
 
 	if (ExclusiveProcess)
 	{
-		return flock(ExclusiveProcess, LOCK_EX) == 0;
+		return flock(ExclusiveProcess, LOCK_EX | LOCK_NB) == 0;
 	}
 
 	return false;
@@ -193,7 +193,7 @@ public:
 
 	bool ReadLine(Utf8String* line)
 	{
-		while (!WaitExitOrTimeout(1ms))
+		while (!WaitExitOrTimeout(0ms))
 		{
 			Utf8String str;
 			if (CanReadLine(&str))
@@ -230,6 +230,10 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 
 		if (tcsetattr(com, TCSANOW, &tty) == 0)
 		{
+			usleep(10000);
+
+			tcflush(com, TCIOFLUSH);
+
 			*sim = SIM800C(port, std::make_shared<PlatformSerialLinux>(com));
 
 			return true;
@@ -277,6 +281,8 @@ int MulDiv(int nNumber, int nNumerator, int nDenominator)
 
 void CtrlHandler(int signum)
 {
+	PLATFORMCOUT << PLATFORMSTR("Received closing event...") << std::endl;
+
 	ExitReset.Set();
 	ExitProcessReset.WaitOrTimeout(30s);
 }

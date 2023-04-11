@@ -169,7 +169,7 @@ public:
 
 	bool ReadLine(Utf8String* line)
 	{
-		while (!WaitExitOrTimeout(1ms))
+		while (!WaitExitOrTimeout(0ms))
 		{
 			Utf8String str;
 			if (CanReadLine(&str))
@@ -262,6 +262,8 @@ BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 	case CTRL_BREAK_EVENT:
 	case CTRL_LOGOFF_EVENT:
 	case CTRL_SHUTDOWN_EVENT:
+		PLATFORMCOUT << PLATFORMSTR("Received closing event...") << std::endl;
+
 		ExitReset.Set();
 		ExitProcessReset.WaitOrTimeout(30s);
 		return TRUE;
