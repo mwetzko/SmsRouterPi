@@ -218,7 +218,7 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 		termios tty = { 0 };
 
 		tty.c_cflag = CS8 | CREAD | CLOCAL;
-		tty.c_iflag = IXON | IXOFF;
+		tty.c_iflag = IGNPAR | IUTF8;
 		tty.c_cc[VTIME] = 1; // 100ms
 		tty.c_cc[VMIN] = 0;
 
