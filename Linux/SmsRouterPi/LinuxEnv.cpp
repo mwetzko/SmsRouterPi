@@ -11,7 +11,6 @@
 #include "SIM800C.h"
 #include <codecvt>
 
-WaitResetEvent ExitProcessReset;
 SafeFdPtr ExclusiveProcess;
 
 void CtrlHandler(int);
@@ -56,8 +55,6 @@ int main(int argc, char** argv)
 	{
 		PLATFORMCOUT << PLATFORMSTR("Last error: ") << errno << std::endl;
 	}
-
-	ExitProcessReset.Set();
 
 	return res;
 }
@@ -282,7 +279,5 @@ int MulDiv(int nNumber, int nNumerator, int nDenominator)
 void CtrlHandler(int signum)
 {
 	PLATFORMCOUT << PLATFORMSTR("Received closing event...") << std::endl;
-
 	ExitReset.Set();
-	ExitProcessReset.WaitOrTimeout(30s);
 }

@@ -13,7 +13,6 @@
 #include <SetupAPI.h>
 #include <Ntddser.h>
 
-WaitResetEvent ExitProcessReset;
 SafeFdPtr ExclusiveProcess;
 
 BOOL WINAPI CtrlHandler(DWORD);
@@ -31,11 +30,7 @@ int wmain(int argc, wchar_t* argv[])
 		vec.push_back(argv[i]);
 	}
 
-	int res = MainLoop(vec);
-
-	ExitProcessReset.Set();
-
-	return res;
+	return MainLoop(vec);
 }
 
 bool CheckExclusiveProcess(const std::filesystem::path& exe)
@@ -263,9 +258,7 @@ BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 	case CTRL_LOGOFF_EVENT:
 	case CTRL_SHUTDOWN_EVENT:
 		PLATFORMCOUT << PLATFORMSTR("Received closing event...") << std::endl;
-
 		ExitReset.Set();
-		ExitProcessReset.WaitOrTimeout(30s);
 		return TRUE;
 	default:
 		return FALSE;
