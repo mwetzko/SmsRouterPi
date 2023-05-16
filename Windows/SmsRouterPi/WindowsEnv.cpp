@@ -219,8 +219,9 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 		DCB dcb = { 0 };
 		dcb.DCBlength = sizeof(DCB);
 		dcb.BaudRate = 9600;
-		dcb.ByteSize = 8;
-		dcb.StopBits = 1;
+		dcb.ByteSize = DATABITS_8;
+		dcb.Parity = NOPARITY;
+		dcb.StopBits = ONESTOPBIT;
 
 		SetCommState(com, &dcb);
 
