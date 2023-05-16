@@ -3,12 +3,12 @@
 serverAddr="smtp.gmail.com"
 
 # wait until network comes online
-while ! ping -c 1 $serverAddr > /dev/null 2>&1; do
+while ! ping -c 1 $serverAddr >/dev/null 2>&1; do
   sleep 3
 done
 
-logfile="$( dirname -- "$0"; )/SmsRouterPi.log"
-exefile="$( dirname -- "$0"; )/SmsRouterPi.out"
+logfile="$(dirname -- "$0")/SmsRouterPi.log"
+exefile="$(dirname -- "$0")/SmsRouterPi.out"
 
 while true; do
 
@@ -16,7 +16,9 @@ while true; do
 
     # start app
 
-    $exefile > $logfile &
+    echo "---Start App---" >$logfile
+
+    $exefile >>$logfile &
 
   fi
 
@@ -28,7 +30,7 @@ while true; do
 
       # reset logfile
 
-      echo "" > $logfile
+      echo "" >$logfile
 
     fi
 
