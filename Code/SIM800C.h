@@ -65,6 +65,8 @@ public:
 	template<typename... Args>
 	void OutputConsole(Args&&... args)
 	{
+		const std::lock_guard<std::mutex> lock(ConsoleLock);
+
 		PLATFORMCOUT << PLATFORMSTR("Device at ") << mPort << PLATFORMSTR(": ");
 
 		(PLATFORMCOUT << ... << args);

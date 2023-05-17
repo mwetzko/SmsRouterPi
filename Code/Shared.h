@@ -195,3 +195,25 @@ bool ReadAllText(const T& filename, S& content)
 {
 	return ReadAll(filename, content);
 }
+
+extern std::mutex ConsoleLock;
+
+template<typename... Args>
+void ConsoleOut(Args&&... args)
+{
+	const std::lock_guard<std::mutex> lock(ConsoleLock);
+
+	(PLATFORMCOUT << ... << args);
+
+	PLATFORMCOUT << std::endl;
+}
+
+template<typename... Args>
+void ConsoleErr(Args&&... args)
+{
+	const std::lock_guard<std::mutex> lock(ConsoleLock);
+
+	(PLATFORMCOUT << ... << args);
+
+	PLATFORMCOUT << std::endl;
+}

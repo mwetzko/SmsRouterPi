@@ -58,7 +58,7 @@ size_t GetRemainingThreads()
 
 void PrintUsage(const std::vector<PlatformString>& args)
 {
-	PLATFORMCERR << PLATFORMSTR("Usage: ") << args[0] << PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>") << std::endl;
+	ConsoleErr(PLATFORMSTR("Usage: "), args[0], PLATFORMSTR(" -username <username> -password <password> -serverurl <serverurl> -fromto <fromto>"));
 }
 
 int MainLoop(const std::vector<PlatformString>& args)
@@ -110,7 +110,7 @@ int MainLoop(const std::vector<PlatformString>& args)
 #if !_DEBUG
 	if (!SendEmail(PLATFORMSTR("[TEST]"), PLATFORMSTR("[TEST]"), smtpusername, smtppassword, smtpserver, smtpfromto))
 	{
-		PLATFORMCERR << PLATFORMSTR("Failed to send test mail!") << std::endl;
+		ConsoleErr(PLATFORMSTR("Failed to send test mail!"));
 		return 2;
 	}
 #endif
@@ -169,7 +169,7 @@ void RemoveCommPort(const PlatformString& port)
 
 void ProcessCommPort(const PlatformString& port)
 {
-	PLATFORMCOUT << PLATFORMSTR("Processing device at ") << port << std::endl;
+	ConsoleOut(PLATFORMSTR("Processing device at "), port);
 
 	SIM800C sim;
 	if (GetCommDevice(RootPath, port, &sim))

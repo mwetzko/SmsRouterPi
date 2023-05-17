@@ -9,6 +9,8 @@
 
 #include "Shared.h"
 
+std::mutex ConsoleLock;
+
 Utf8String PlatformStringToUtf8(const PlatformString& str)
 {
 	return ConvertMultiByte<PlatformString, Utf8String>(str, std::wcsrtombs);
