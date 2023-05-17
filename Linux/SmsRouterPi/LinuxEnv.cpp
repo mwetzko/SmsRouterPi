@@ -209,7 +209,7 @@ public:
 	}
 };
 
-bool GetCommDevice(const PlatformString& port, SIM800C* sim)
+bool GetCommDevice(const std::filesystem::path& root, const PlatformString& port, SIM800C* sim)
 {
 	SafeFdPtr com = SafeFdPtr(open(PlatformStringToUtf8(port).c_str(), O_RDWR));
 
@@ -231,7 +231,7 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 
 			tcflush(com, TCIOFLUSH);
 
-			*sim = SIM800C(port, std::make_shared<PlatformSerialLinux>(com));
+			*sim = SIM800C(root, port, std::make_shared<PlatformSerialLinux>(com));
 
 			return true;
 		}

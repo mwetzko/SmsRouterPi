@@ -201,7 +201,7 @@ public:
 	}
 };
 
-bool GetCommDevice(const PlatformString& port, SIM800C* sim)
+bool GetCommDevice(const std::filesystem::path& root, const PlatformString& port, SIM800C* sim)
 {
 	SafeHANDLE com = SafeHANDLE(CreateFileW(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0));
 
@@ -235,7 +235,7 @@ bool GetCommDevice(const PlatformString& port, SIM800C* sim)
 
 			if (readReset)
 			{
-				*sim = SIM800C(port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset));
+				*sim = SIM800C(root, port, std::make_shared<PlatformSerialWindows>(com, writeReset, readReset));
 
 				return true;
 			}

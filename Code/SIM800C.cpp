@@ -15,8 +15,9 @@ SIM800C::SIM800C()
 	// nothing
 }
 
-SIM800C::SIM800C(const PlatformString& port, const std::shared_ptr<PlatformSerial>& serial)
+SIM800C::SIM800C(const std::filesystem::path& root, const PlatformString& port, const std::shared_ptr<PlatformSerial>& serial)
 {
+	mRoot = root;
 	mPort = port;
 	mSerial = serial;
 	mRecentCaller = PLATFORMSTR("");
@@ -87,6 +88,11 @@ bool SIM800C::IsOKOrErrorCommand(const PlatformString& line)
 
 bool SIM800C::ExecuteATCommand(const PlatformString& cmd)
 {
+	return this->ExecuteATCommand(cmd, NULL);
+}
+
+bool SIM800C::ExecuteATCommand(const PlatformString& cmd, PlatformString* ret)
+{
 	if (!this->WriteLine(cmd))
 	{
 		return false;
@@ -97,6 +103,11 @@ bool SIM800C::ExecuteATCommand(const PlatformString& cmd)
 		PlatformString line;
 		if (!this->ReadLine(&line))
 		{
+			if (ret && *ret != PLATFORMSTR(""))
+			{
+				this->OutputConsole(PLATFORMSTR("Unhandled return: "), *ret);
+			}
+
 			return false;
 		}
 
@@ -116,11 +127,28 @@ bool SIM800C::ExecuteATCommand(const PlatformString& cmd)
 		}
 		else if (line == PLATFORMSTR("ERROR"))
 		{
+			if (ret && *ret != PLATFORMSTR(""))
+			{
+				this->OutputConsole(PLATFORMSTR("Unhandled return: "), *ret);
+			}
+
 			return false;
 		}
 		else
 		{
-			this->OutputConsole(PLATFORMSTR("Unhandled return: "), line);
+			if (ret)
+			{
+				if (*ret != PLATFORMSTR(""))
+				{
+					this->OutputConsole(PLATFORMSTR("Unhandled return: "), *ret);
+				}
+
+				*ret = line;
+			}
+			else
+			{
+				this->OutputConsole(PLATFORMSTR("Unhandled return: "), line);
+			}
 		}
 	}
 }
@@ -316,8 +344,35 @@ bool SIM800C::Init()
 
 	if (number == PLATFORMSTR(""))
 	{
-		this->OutputConsole(PLATFORMSTR("Subscriber number is empty!"));
-		return false;
+		this->OutputConsole(PLATFORMSTR("Subscriber number is empty! Get CCID..."));
+
+		if (!this->ExecuteATCommand(PLATFORMSTR("AT+CCID"), &number))
+		{
+			this->OutputConsole(PLATFORMSTR("Get CCID command failed!"));
+			return false;
+		}
+
+		if (number == PLATFORMSTR(""))
+		{
+			this->OutputConsole(PLATFORMSTR("CCID is empty!"));
+			return false;
+		}
+
+		auto mapfile = PlatformString(number).append(PLATFORMSTR(".number"));
+
+		this->OutputConsole(PLATFORMSTR("Looking for number mapping file "), mapfile);
+
+		auto path = mRoot / mapfile;
+
+		PlatformString numbermap;
+		if (!ReadAllText(path, numbermap) || numbermap == PLATFORMSTR(""))
+		{
+			number = (PlatformString(PLATFORMSTR("SIM-")).append(number));
+		}
+		else
+		{
+			number = numbermap;
+		}
 	}
 
 	this->OutputConsole(PLATFORMSTR("Phone number is "), number);

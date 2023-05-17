@@ -13,11 +13,13 @@
 #include <chrono>
 #include <thread>
 
+std::filesystem::path RootPath;
+
 std::map<PlatformString, std::shared_ptr<std::thread>> Ports;
 std::mutex PortsLock;
 
 void HandleTimer();
-bool GetCommDevice(const PlatformString&, SIM800C*);
+bool GetCommDevice(const std::filesystem::path&, const PlatformString&, SIM800C*);
 void RemoveCommPort(const PlatformString&);
 void ProcessCommPort(const PlatformString&);
 void ProcessCommLoop(SIM800C&);
@@ -68,14 +70,14 @@ int MainLoop(const std::vector<PlatformString>& args)
 		return -1;
 	}
 
+	RootPath = exe.parent_path();
+
 	std::map<PlatformString, PlatformString, PlatformCIComparer> parsed;
 	ParseArguments(args, parsed);
 
 	if (!ValidateArguments(parsed, { PLATFORMSTR("username"), PLATFORMSTR("password"), PLATFORMSTR("serverurl"), PLATFORMSTR("fromto") }))
 	{
-		auto root = exe.parent_path();
-
-		auto path = root / PLATFORMSTR("arguments.json");
+		auto path = RootPath / PLATFORMSTR("arguments.json");
 
 		PlatformString json;
 		if (ReadAllText(path, json))
@@ -170,7 +172,7 @@ void ProcessCommPort(const PlatformString& port)
 	PLATFORMCOUT << PLATFORMSTR("Processing device at ") << port << std::endl;
 
 	SIM800C sim;
-	if (GetCommDevice(port, &sim))
+	if (GetCommDevice(RootPath, port, &sim))
 	{
 		ProcessCommLoop(sim);
 	}

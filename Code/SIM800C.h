@@ -25,6 +25,7 @@ private:
 		PlatformString Date;
 	};
 
+	std::filesystem::path mRoot;
 	PlatformString mPort;
 	std::shared_ptr<PlatformSerial> mSerial;
 	std::wregex mRegMatchATResult = std::wregex(PLATFORMSTR("^(\\+[0-9a-z]+):[\t ]+"), std::wregex::icase);
@@ -45,6 +46,7 @@ private:
 	bool IsErrorCommand(const PlatformString&);
 	bool IsOKOrErrorCommand(const PlatformString&);
 	bool ExecuteATCommand(const PlatformString&);
+	bool ExecuteATCommand(const PlatformString&, PlatformString*);
 	void PrintNetworkState(const PlatformString&);
 	void OnCommand(const PlatformString&, const PlatformString&);
 	bool ProcessSms(const PlatformString&, const PlatformString&);
@@ -55,7 +57,7 @@ public:
 	void (*OnNewCaller)(SIM800C&, const PlatformString&, const PlatformString&) = 0;
 
 	SIM800C();
-	SIM800C(const PlatformString&, const std::shared_ptr<PlatformSerial>&);
+	SIM800C(const std::filesystem::path&, const PlatformString&, const std::shared_ptr<PlatformSerial>&);
 
 	bool Init();
 	bool PerformLoop();
